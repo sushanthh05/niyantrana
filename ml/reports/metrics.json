@@ -1,0 +1,97 @@
+{
+  "baseline_train_mean": {
+    "triglycerides": 179.34510803222656,
+    "ggt": 49.70157241821289
+  },
+  "split": {
+    "seed": 42,
+    "sequence_length": 14,
+    "strategy": "GroupSplit by user_id (disjoint users across splits)",
+    "train_users": [
+      2,
+      3,
+      5,
+      6,
+      9,
+      11,
+      13,
+      14,
+      15
+    ],
+    "val_users": [
+      1,
+      4,
+      12
+    ],
+    "test_users": [
+      7,
+      8,
+      10
+    ],
+    "scaler_fit_on": "train rows only"
+  },
+  "val": {
+    "triglycerides": {
+      "unit": "mg/dL",
+      "n": 1053,
+      "model": {
+        "mae": 24.47401237487793,
+        "rmse": 28.07005500793457,
+        "r2": -4.007592295217952
+      },
+      "baseline_mean_predictor": {
+        "mae": 18.18682861328125,
+        "rmse": 21.73857307434082,
+        "r2": -2.0033399007233936
+      },
+      "mae_improvement_pct": -34.6
+    },
+    "ggt": {
+      "unit": "U/L",
+      "n": 1053,
+      "model": {
+        "mae": 18.265987396240234,
+        "rmse": 21.39766502380371,
+        "r2": 0.11455917385458392
+      },
+      "baseline_mean_predictor": {
+        "mae": 19.545427322387695,
+        "rmse": 22.789180755615234,
+        "r2": -0.004348103562940242
+      },
+      "mae_improvement_pct": 6.5
+    }
+  },
+  "test": {
+    "triglycerides": {
+      "unit": "mg/dL",
+      "n": 1053,
+      "model": {
+        "mae": 26.463096618652344,
+        "rmse": 31.64568519592285,
+        "r2": -0.8903699955789384
+      },
+      "baseline_mean_predictor": {
+        "mae": 27.711055755615234,
+        "rmse": 34.24370193481445,
+        "r2": -1.2134987358631903
+      },
+      "mae_improvement_pct": 4.5
+    },
+    "ggt": {
+      "unit": "U/L",
+      "n": 1053,
+      "model": {
+        "mae": 19.522607803344727,
+        "rmse": 27.635704040527344,
+        "r2": -0.8743883225684417
+      },
+      "baseline_mean_predictor": {
+        "mae": 17.733535766601562,
+        "rmse": 26.3372859954834,
+        "r2": -0.7023957543604675
+      },
+      "mae_improvement_pct": -10.1
+    }
+  }
+}

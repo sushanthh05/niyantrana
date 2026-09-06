@@ -1,3 +1,4 @@
+# Training + research (local / Colab)
 numpy
 pandas
 scikit-learn
@@ -5,4 +6,13 @@ matplotlib
 seaborn
 tensorflow
 openpyxl
-flask
+joblib
+tf2onnx
+pytest
+
+# Serving (see requirements-serve.txt for the deployment subset)
+onnxruntime
+fastapi
+uvicorn
+google-generativeai
+python-dotenv

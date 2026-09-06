@@ -14,5 +14,18 @@
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "xlsx": "^0.18.5"
+  },
+  "name": "niyantrana-api",
+  "version": "2.0.0",
+  "description": "Niyantrana backend API: auth, profiles, wearable ingest, risk orchestration.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node scripts/seedFoods.js",
+    "lint": "node --check server.js"
   }
 }

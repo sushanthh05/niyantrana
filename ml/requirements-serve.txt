@@ -1,0 +1,14 @@
+# Deployment-only dependencies. Deliberately EXCLUDES tensorflow: importing TF
+# costs ~358 MB RSS versus ~33 MB for onnxruntime, which is the difference
+# between fitting and OOM-ing on a free 512 MB instance. Training happens
+# offline; only the exported ONNX graph ships.
+numpy
+pandas
+scikit-learn
+joblib
+onnxruntime
+fastapi
+uvicorn[standard]
+openpyxl
+google-generativeai
+python-dotenv

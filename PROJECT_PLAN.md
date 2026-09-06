@@ -1,0 +1,278 @@
+# Niyantrana — 15-Day Completion Plan
+
+**Goal:** a deployed, honest, defensible portfolio project.
+**How to use:** say **"Day N"** and only that day's scope gets built. Each day is self-contained.
+**Update rule:** at the end of each day, tick the checkboxes and fill in "Result".
+
+---
+
+## Current state (updated end of Day 1)
+
+| Subsystem | Status |
+|---|---|
+| `ml/` prediction path | ✅ Fixed, tested, ONNX-served |
+| `ml/` real data | ✅ 17,961 NHANES adults ingested |
+| `ml/` risk engine | ⬜ Not built (Day 2–3) |
+| `rag_engine/` | ✅ Merged into `ml/src/recommendation/`, directory removed |
+| `backend2/` | ✅ Restructured into layers; all 3 silent mock fallbacks deleted |
+| `frontend/` | ⬜ Out of scope — being replaced wholesale |
+| Deployment | ⬜ Nothing deployed |
+
+**Restructure (done alongside Day 1):** both services rebuilt on a layered
+architecture following refactoring.guru principles. See
+**[docs/REFACTORING.md](docs/REFACTORING.md)** for every decision mapped to a
+named smell, pattern or technique.
+
+```
+ml/src/     domain -> features -> inference -> risk -> api      (+ training, data, recommendation)
+backend2/src/  config -> domain -> models -> repositories -> services -> controllers -> routes
+```
+
+Dependencies point inward; `domain/` imports nothing from the layers above it.
+
+**Ground truth to remember:** the original model scored R² **0.900/0.974** only because of leakage. On a proper user-level split it scores **−0.89 / −0.87 — worse than guessing the mean.** 15 synthetic personas cannot support this task. That finding is *why* Days 2–4 exist.
+
+---
+
+## Data sources
+
+### Tier 1 — in use
+| Source | Size | What it gives | Access |
+|---|---|---|---|
+| **NHANES** 2013–18 | **17,961 adults** ✅ ingested | TG, GGT, HbA1c, BP + 24h diet recall + sleep hrs + activity min | Free, no application |
+
+### Tier 2 — to evaluate (Day 4)
+| Source | Size | Why it matters | Access |
+|---|---|---|---|
+| **PMData** (SimulaMet) | 16 × 5 months | Fitbit + **MyFitnessPal food logs** — matches app input exactly | ✅ Free, **no registration** |
+| **LifeSnaps** (Zenodo) | 71 × 4 months, 71M rows | Fitbit + surveys, large temporal volume | ✅ Free, **no registration** |
+| **AI-READI** (NIH) | 2,280 (3.8 TB) | Multimodal diabetes: CGM + wearable + labs | Registration + DUA; likely overkill |
+| ~~WEAR-ME~~ | ~~1,165~~ | ❌ **Not obtainable** — verified Google-internal cohort, data availability restricted. Withdrawn from the plan. | — |
+
+### Tier 3 — India calibration
+| Source | Size | Notes |
+|---|---|---|
+| **LASI** Wave 1 | ~72,000 | ⭐ HbA1c + BP biomarkers on Indians. Via IIPS / Gateway to Global Aging | Registration |
+| **NFHS-5** | ~700,000 | BP, glucose, BMI. No TG/GGT | Free, registration |
+| **ICMR-INDIAB** | 113,043 | Published prevalence tables for threshold calibration (raw data not open) | Paper only |
+| **Anuvaad INDB** | 1,014 foods | ✅ already in repo — Indian food composition | In repo |
+
+**Dropped:** UK Biobank (£3–9k, months of review) and WEAR-ME (not publicly available) — remove both from the decks.
+
+📄 Full access details, registration times and deadlines: **[docs/DATA_SOURCES.md](docs/DATA_SOURCES.md)**
+📄 Target system design: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+
+**Registrations with a lead time — start these now if you want them:**
+- **GitHub Student Pack** (~1 day approval) — optional, buys always-on hosting
+- **NFHS-5 / DHS Program** (1–2 days) — apply by Day 3 if you want India calibration on Day 4
+
+Everything needed for Days 1–9 requires **no registration at all**.
+
+---
+
+## Day 1 — ML forensics & real-data foundation ✅ DONE
+
+- [x] Reproduce and fix the fatal inference bug (`predict.py` fed the MLP branch all-NaN → identical output for every user)
+- [x] Fix the feature-order bug (`gender_numeric` at index 0 vs 1 in training)
+- [x] Create `src/features.py` as the single shared schema (kills the drift class of bug)
+- [x] Rewrite `data_processing.py`: split **before** scaling, **disjoint users** across train/val/test
+- [x] Rewrite `train.py`: record history, add ReduceLROnPlateau
+- [x] Add `src/evaluate.py`: MAE/RMSE/R² vs a mean-predictor baseline
+- [x] 13 regression tests in `tests/` — verified they **fail** on the original code
+- [x] ONNX export + parity check (`src/export_onnx.py`)
+- [x] Port RAG engine into `src/recommender.py` with 5 bug fixes
+- [x] NHANES downloader + dataset builder → **17,961 adults**
+
+**Result:** honest metrics exposed the real problem. TF 358 MB → onnxruntime 33 MB RSS (deployment unblocked). Real data acquired.
+
+---
+
+## Day 2 — Risk Engine v1 (regression on real data)
+
+**Goal:** a model that actually predicts biomarkers from app-collectable inputs.
+
+- [ ] `src/risk_engine.py` — multi-task `HistGradientBoostingRegressor` (sklearn, native NaN handling, no extra deps)
+- [ ] Targets: `triglycerides`, `ggt`, `hba1c`, `systolic_bp`, `diastolic_bp`
+- [ ] Features: age, sex, BMI, waist, 7 diet macros, sleep hours, activity minutes, sedentary, alcohol, smoking
+- [ ] Stratified train/val/test split; **cycle-holdout** as an extra generalisation check (train 2013–16 → test 2017–18)
+- [ ] Report MAE/RMSE/R² per target vs mean-predictor baseline
+- [ ] Persist models + `reports/nhanes_metrics.json`
+
+**Done when:** every target beats the baseline on a held-out split, with numbers written to disk.
+
+---
+
+## Day 3 — Risk Engine v2 (classification, calibration, interpretability)
+
+**Goal:** turn regression into the three clinical risk outputs the pitch promises.
+
+- [ ] Classification heads: fatty liver (FLI ≥ 60), prediabetes/diabetes (HbA1c ≥ 5.7 / ≥ 6.5), hypertension (≥130/80)
+- [ ] Report AUROC, sensitivity, PPV — **prioritise sensitivity**, per deck slide 8
+- [ ] Probability calibration (isotonic / Platt) + calibration curve
+- [ ] SHAP feature importances per head → `reports/shap/`
+- [ ] Sanity check: does the model rank a known high-risk profile above a low-risk one?
+
+**Done when:** three calibrated risk probabilities with AUROC + sensitivity recorded.
+
+---
+
+## Day 4 — Temporal model & composition
+
+**Goal:** make the wearable time series earn its place, honestly.
+
+- [ ] Ingest PMData / LifeSnaps (direct download, no registration)
+- [ ] Feature bridge: 14-day wearable window → NHANES-comparable features (weekly MVPA, mean sleep, sedentary)
+- [ ] Retrain the LSTM as a **trend/delta** model, not an absolute predictor
+- [ ] Compose: `risk = RiskEngine(baseline features) adjusted by TemporalModel(trend)`
+- [ ] Risk **trajectory**: run the engine over rolling windows → fit trend → forecast
+- [ ] Label every simulation-trained output explicitly in the API response
+
+**Done when:** `/predict` returns a real risk score plus a trajectory, each tagged with its provenance.
+
+---
+
+## Day 5 — Unified inference service  (mostly done in the restructure)
+
+- [x] `ml/src/api/app.py` → FastAPI replacing both Flask apps: `/health`, `/predict`, `/recommend`
+- [x] Pydantic request/response models; no `debug=True`; `PORT` from env; CORS from env
+- [x] Graceful degradation: no `GEMINI_API_KEY` → `/recommend` 503, `/predict` unaffected
+- [x] Delete the now-redundant `rag_engine/`
+- [x] Contract test: `test_failed_inference_raises_rather_than_substituting`
+- [ ] `Dockerfile` (onnxruntime only, no TensorFlow) + verify RSS under ~300 MB
+- [ ] Run the service and exercise both endpoints over HTTP
+
+**Done when:** one container serves prediction + recommendation and stays under ~300 MB RSS.
+
+---
+
+## Day 6 — Backend truth pass  (mostly done in the restructure)
+
+- [x] **All three silent mock fallbacks deleted**; `InferenceClient` throws instead
+- [x] Every response carries `provenance`; it is a required field on the schema
+- [x] Payload contract fixed — `RiskService.toProfilePayload` sends the diet fields
+- [x] `watchDataSchema` drift fixed via field aliases
+- [x] All config from env via `config/env.js`; API-key `console.log` removed
+- [x] `package.json` scripts + `.env.example` + `scripts/seedFoods.js`
+- [ ] `npm install` and boot against a real MongoDB
+- [ ] Integration tests for the auth and assessment flows
+
+**Done when:** stopping the ML service makes `/api/predict` return an error, not a plausible random number.
+
+---
+
+## Day 7 — Backend features
+
+- [ ] Persist meal/vitals/activity logs server-side (currently localStorage only)
+- [ ] Aggregate meal logs → daily macro totals for the model
+- [ ] `POST /api/recommend` proxying the Python service
+- [ ] **Gemini proxy** `POST /api/chat` — removes the API key from the browser bundle
+- [ ] Seed the `foods` collection (fix `importXLSX.js`: relative path, correct DB name)
+
+**Done when:** a logged meal reaches Mongo and changes the next prediction.
+
+---
+
+## Day 8 — Frontend: real API layer
+
+- [ ] Rewrite `apiService.jsx` around `fetch(..., { credentials: 'include' })` — delete ~450 lines of dead mocks
+- [ ] Switch auth to **session cookies** (backend is Passport, not JWT)
+- [ ] Fix the `AuthContext.jsx:28` double-wrap bug that blanks the dashboard on refresh
+- [ ] Add `/signup`, `/forgot-password`, `*` 404, `errorElement`
+- [ ] `.env.example` with `VITE_API_BASE_URL`
+
+**Done when:** sign-up → login → profile round-trips through Mongo.
+
+---
+
+## Day 9 — Frontend: real data surfaces
+
+- [ ] Dashboard reads the real FLI + three risk scores; remove hardcoded `dailyMetrics`
+- [ ] Show the `source` badge and a **medical disclaimer**
+- [ ] Trends page reads server data
+- [ ] **Delete `profileService.generateDoctorsReport`** — it currently returns a stranger's fabricated 2023 labs
+- [ ] Replace `alert()` with toasts; persist gamification state
+- [ ] Delete `public/index.html` (breaks `vite build`), stray scripts, 2.2 MB duplicate data files
+
+**Done when:** no `Math.random()` and no fabricated health data anywhere in the UI.
+
+---
+
+## Day 10 — Fitbit integration
+
+- [ ] Register at `dev.fitbit.com`; scopes `activity heartrate sleep profile`
+- [ ] `GET /auth/fitbit` + `/callback` — **server-side token exchange**, PKCE
+- [ ] Store tokens on the user; refresh-on-401
+- [ ] Backfill last 14 days on connect → prediction available immediately
+- [ ] Map the 6 LSTM features (steps, active min, sleep hrs, efficiency, RHR, HRV)
+- [ ] JSON/CSV import fallback so a reviewer without a Fitbit can still demo
+- [ ] Delete `googleFitService.jsx` + `GOOGLE_FIT_SETUP.md`
+
+**Done when:** a Fitbit account populates `watchHistory` and drives a prediction.
+
+---
+
+## Day 11 — Deploy: data + backend
+
+- [ ] MongoDB Atlas M0, seed foods collection
+- [ ] Node API → Render free (`PORT` env, `trust proxy`, `secure`+`sameSite:none` cookies)
+- [ ] Python service → Render free
+- [ ] `render.yaml`, all secrets as env vars
+- [ ] Verify cross-service calls in production
+
+**Done when:** both services respond to public `/health`.
+
+---
+
+## Day 12 — Deploy: frontend + end-to-end
+
+- [ ] Frontend → Cloudflare Pages with `VITE_API_BASE_URL`
+- [ ] CORS + cookie domain correct across origins
+- [ ] Full production smoke test **from a phone**: register → onboard → log meal → risk score → recommendation
+- [ ] Document the 15-min cold start; add a wake-up ping
+
+**Done when:** the whole flow works on mobile data on a public URL.
+
+---
+
+## Day 13 — Documentation
+
+- [ ] Rewrite `README.md` (resolve the merge conflict; it currently documents a CRA stack that no longer exists): problem, architecture diagram, **live URL + demo credentials**, headline metrics, honest limitations
+- [ ] `ml/RESULTS.md`: provenance, splits, metrics vs baseline, SHAP, the leakage finding, simulation-trained disclosure
+- [ ] `.env.example` in all three services
+- [ ] Architecture diagram
+
+**Done when:** a reviewer understands the project without running it.
+
+---
+
+## Day 14 — Demo polish
+
+- [ ] Seed a demo account with 30 days of realistic history
+- [ ] Screenshots + a 60-second GIF in the README
+- [ ] Loading/error/empty states
+- [ ] Mobile responsiveness pass
+- [ ] Lighthouse + bundle-size check
+
+**Done when:** first click on the live URL shows a populated, working app.
+
+---
+
+## Day 15 — Buffer & ship
+
+- [ ] Full regression pass; all tests green
+- [ ] Security sweep: no secrets in the bundle, no keys in logs
+- [ ] Optional: update decks (fill slide 8's `RMSE = __, R² = __`, drop UK Biobank)
+- [ ] Portfolio write-up: the problem, the leakage discovery, the fix, the numbers
+- [ ] Final commit + tag
+
+---
+
+## Definition of done
+
+- [ ] Live URL, working from a phone
+- [ ] ML service down → visible error, **never** a fake number
+- [ ] Different profiles → different predictions (regression-tested)
+- [ ] Real held-out metrics on real data, beating a mean-predictor baseline
+- [ ] All three diseases scored
+- [ ] No API key reachable from the browser
+- [ ] README a reviewer can trust
