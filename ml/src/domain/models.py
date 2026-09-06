@@ -293,12 +293,24 @@ class Biomarkers:
     systolic_bp: float | None = None
     diastolic_bp: float | None = None
 
+    # A directly-predicted Fatty Liver Index, when a model estimated it as a
+    # target in its own right. Preferred over recomputing from predicted TG and
+    # GGT: composing two weak estimates scores R2 ~0.05, while predicting FLI
+    # directly scores ~0.86, because BMI and waist -- two of the formula's four
+    # terms -- are measured exactly rather than estimated.
+    fli: float | None = None
+
     def fatty_liver_index(self, bmi: float, waist_cm: float) -> float | None:
-        """Bedogni 2006 Fatty Liver Index, 0-100.
+        """Fatty Liver Index, 0-100 (Bedogni 2006).
+
+        Returns a directly-predicted value when one is present, otherwise
+        computes the formula from triglycerides and GGT.
 
         Previously duplicated in `apiRoutes.js`, `predict.py` and a notebook
         (**Duplicate Code**), which meant three places to fix a coefficient.
         """
+        if self.fli is not None:
+            return self.fli
         if not (self.triglycerides and self.ggt and bmi and waist_cm):
             return None
         if self.triglycerides <= 0 or self.ggt <= 0:

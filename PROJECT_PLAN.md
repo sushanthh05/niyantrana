@@ -12,7 +12,7 @@
 |---|---|
 | `ml/` prediction path | ✅ Fixed, tested, ONNX-served |
 | `ml/` real data | ✅ 17,961 NHANES adults ingested |
-| `ml/` risk engine | ⬜ Not built (Day 2–3) |
+| `ml/` risk engine | 🟡 Regression heads done (Day 2); classification + calibration pending (Day 3) |
 | `rag_engine/` | ✅ Merged into `ml/src/recommendation/`, directory removed |
 | `backend2/` | ✅ Restructured into layers; all 3 silent mock fallbacks deleted |
 | `frontend/` | ⬜ Out of scope — being replaced wholesale |
@@ -87,18 +87,35 @@ Everything needed for Days 1–9 requires **no registration at all**.
 
 ---
 
-## Day 2 — Risk Engine v1 (regression on real data)
+## Day 2 — Risk Engine v1 (regression on real data) ✅ DONE
 
-**Goal:** a model that actually predicts biomarkers from app-collectable inputs.
+- [x] `src/training/train_risk_engine.py` — multi-target `HistGradientBoostingRegressor`
+- [x] Targets: `triglycerides`, `ggt`, `hba1c`, `systolic_bp`, `diastolic_bp`, **plus `fli` predicted directly**
+- [x] 16 features, all app-collectable
+- [x] Train/val/test split **and** cycle holdout (2013–16 → 2017–18)
+- [x] MAE/RMSE/R² per target vs mean-predictor baseline
+- [x] `src/inference/risk_engine.py` — serving side, substitutable for `BiomarkerPredictor`
+- [x] Persisted `models/risk_engine.joblib` + `reports/nhanes_metrics.json` + **[ml/RESULTS.md](ml/RESULTS.md)**
+- [x] 16 new tests (35 total, all passing)
 
-- [ ] `src/risk_engine.py` — multi-task `HistGradientBoostingRegressor` (sklearn, native NaN handling, no extra deps)
-- [ ] Targets: `triglycerides`, `ggt`, `hba1c`, `systolic_bp`, `diastolic_bp`
-- [ ] Features: age, sex, BMI, waist, 7 diet macros, sleep hours, activity minutes, sedentary, alcohol, smoking
-- [ ] Stratified train/val/test split; **cycle-holdout** as an extra generalisation check (train 2013–16 → test 2017–18)
-- [ ] Report MAE/RMSE/R² per target vs mean-predictor baseline
-- [ ] Persist models + `reports/nhanes_metrics.json`
+**Result: 6/6 targets beat baseline on both splits.** Cycle-holdout R²:
+systolic_bp **+0.270** · hba1c **+0.129** · diastolic_bp +0.089 · triglycerides +0.045 ·
+ggt **−0.001** · fli +0.852
 
-**Done when:** every target beats the baseline on a held-out split, with numbers written to disk.
+**Two findings that shape the rest of the project:**
+
+1. **The FLI R² of 0.85 is mostly arithmetic, not learning.** Ablation shows the
+   Bedogni formula with cohort-median TG/GGT scores R² **0.843 with no ML at all**,
+   because BMI and waist are two of its four terms and we measure them exactly.
+   The model adds +6.1% MAE over that. FLI is therefore scored against the
+   *formula reference*, not the mean predictor.
+2. **GGT is effectively unpredictable from lifestyle** (R² −0.001). Reported as a
+   negative result. This caps how far the fatty-liver estimate can improve, and
+   is why predicting FLI directly (R² 0.86) beats composing it from predicted
+   TG + GGT (R² ~0.05).
+
+**Product conclusion:** waist circumference is the single most valuable input
+across every target — more than BMI in all six. Onboarding must insist on it.
 
 ---
 

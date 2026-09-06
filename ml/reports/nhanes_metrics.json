@@ -1,0 +1,436 @@
+{
+  "dataset": {
+    "source": "NHANES 2013-2018 (CDC, public domain)",
+    "rows": 17961,
+    "cycles": [
+      "2013-2014",
+      "2015-2016",
+      "2017-2018"
+    ],
+    "features": [
+      "age",
+      "sex_male",
+      "bmi",
+      "waist_cm",
+      "energy_kcal",
+      "fat_g",
+      "carb_g",
+      "protein_g",
+      "sugar_g",
+      "fibre_g",
+      "satfat_g",
+      "sleep_hours",
+      "mvpa_min_week",
+      "sedentary_min_day",
+      "alcohol_drinks_week",
+      "smoking_status"
+    ]
+  },
+  "targets": {
+    "triglycerides": {
+      "unit": "mg/dL",
+      "log_transform": true,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 4525,
+      "random_split": {
+        "model": {
+          "mae": 48.075773173447345,
+          "rmse": 74.83180512852425,
+          "r2": 0.046396228896016356,
+          "n": 1509
+        },
+        "baseline_mean_predictor": {
+          "mae": 53.46172995178103,
+          "rmse": 76.64570957740656,
+          "r2": -0.0003943150171794585,
+          "n": 1509
+        },
+        "mae_improvement_pct": 10.1,
+        "beats_baseline": true
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 47.09709989785392,
+          "rmse": 86.53437616935747,
+          "r2": 0.04521217695041213,
+          "n": 2489
+        },
+        "baseline_mean_predictor": {
+          "mae": 54.068960171887284,
+          "rmse": 88.60293524830266,
+          "r2": -0.0009808205324022268,
+          "n": 2489
+        },
+        "mae_improvement_pct": 12.9,
+        "beats_baseline": true
+      }
+    },
+    "ggt": {
+      "unit": "U/L",
+      "log_transform": true,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 9693,
+      "random_split": {
+        "model": {
+          "mae": 14.001505665088166,
+          "rmse": 36.4270178556667,
+          "r2": 0.0289754585947275,
+          "n": 3231
+        },
+        "baseline_mean_predictor": {
+          "mae": 17.286182969755842,
+          "rmse": 36.97104436495205,
+          "r2": -0.00024504024813576386,
+          "n": 3231
+        },
+        "mae_improvement_pct": 19.0,
+        "beats_baseline": true
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 16.34728977857868,
+          "rmse": 42.183402595166534,
+          "r2": -0.0013811876708900162,
+          "n": 5151
+        },
+        "baseline_mean_predictor": {
+          "mae": 18.584475026500662,
+          "rmse": 42.34264690323624,
+          "r2": -0.008955979508753709,
+          "n": 5151
+        },
+        "mae_improvement_pct": 12.0,
+        "beats_baseline": true
+      }
+    },
+    "hba1c": {
+      "unit": "%",
+      "log_transform": true,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 9834,
+      "random_split": {
+        "model": {
+          "mae": 0.5614628469451641,
+          "rmse": 1.0698200613212565,
+          "r2": 0.13541830408295175,
+          "n": 3279
+        },
+        "baseline_mean_predictor": {
+          "mae": 0.6501033533601984,
+          "rmse": 1.1511092553982918,
+          "r2": -0.0009621451036243567,
+          "n": 3279
+        },
+        "mae_improvement_pct": 13.6,
+        "beats_baseline": true
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 0.5822919849647027,
+          "rmse": 1.013813963383384,
+          "r2": 0.12925437976506648,
+          "n": 5261
+        },
+        "baseline_mean_predictor": {
+          "mae": 0.6415562476563643,
+          "rmse": 1.0887743014815212,
+          "r2": -0.0042699893038598,
+          "n": 5261
+        },
+        "mae_improvement_pct": 9.2,
+        "beats_baseline": true
+      }
+    },
+    "systolic_bp": {
+      "unit": "mmHg",
+      "log_transform": false,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 9921,
+      "random_split": {
+        "model": {
+          "mae": 12.31771190144958,
+          "rmse": 16.63955881481819,
+          "r2": 0.23530180088044172,
+          "n": 3308
+        },
+        "baseline_mean_predictor": {
+          "mae": 14.516641453374438,
+          "rmse": 19.04050864484824,
+          "r2": -0.0012984523853989405,
+          "n": 3308
+        },
+        "mae_improvement_pct": 15.1,
+        "beats_baseline": true
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 12.734223703096731,
+          "rmse": 17.1818693554599,
+          "r2": 0.2703774829552338,
+          "n": 5250
+        },
+        "baseline_mean_predictor": {
+          "mae": 15.249362159607774,
+          "rmse": 20.277145121089156,
+          "r2": -0.016180886932592342,
+          "n": 5250
+        },
+        "mae_improvement_pct": 16.5,
+        "beats_baseline": true
+      }
+    },
+    "diastolic_bp": {
+      "unit": "mmHg",
+      "log_transform": false,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 9849,
+      "random_split": {
+        "model": {
+          "mae": 8.33300465683865,
+          "rmse": 10.782236944584497,
+          "r2": 0.1647342039093027,
+          "n": 3284
+        },
+        "baseline_mean_predictor": {
+          "mae": 9.133739884352796,
+          "rmse": 11.800381518156495,
+          "r2": -0.0004584394751534493,
+          "n": 3284
+        },
+        "mae_improvement_pct": 8.8,
+        "beats_baseline": true
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 8.828601699872616,
+          "rmse": 11.48581601768734,
+          "r2": 0.08877144092198275,
+          "n": 5220
+        },
+        "baseline_mean_predictor": {
+          "mae": 9.546117227599535,
+          "rmse": 12.33616793014776,
+          "r2": -0.051148699502016504,
+          "n": 5220
+        },
+        "mae_improvement_pct": 7.5,
+        "beats_baseline": true
+      }
+    },
+    "fli": {
+      "unit": "index 0-100",
+      "log_transform": false,
+      "hyperparameters": {
+        "max_iter": 400,
+        "learning_rate": 0.05,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 60
+      },
+      "train_n": 4293,
+      "random_split": {
+        "model": {
+          "mae": 8.754439485652403,
+          "rmse": 12.419744238182147,
+          "r2": 0.8603788285525962,
+          "n": 1431
+        },
+        "baseline_mean_predictor": {
+          "mae": 29.77698003965239,
+          "rmse": 33.23820343045129,
+          "r2": -2.43088326867813e-06,
+          "n": 1431
+        },
+        "mae_improvement_pct": 70.6,
+        "beats_baseline": true,
+        "baseline_formula_reference": {
+          "mae": 9.318777082740128,
+          "rmse": 13.136415808399168,
+          "r2": 0.8438004615878856,
+          "n": 1431
+        },
+        "gain_over_formula_pct": 6.1
+      },
+      "cycle_holdout": {
+        "train_cycles": [
+          "2013-2014",
+          "2015-2016"
+        ],
+        "test_cycle": "2017-2018",
+        "model": {
+          "mae": 8.925925713188644,
+          "rmse": 12.630694056086584,
+          "r2": 0.8524309785046491,
+          "n": 2347
+        },
+        "baseline_mean_predictor": {
+          "mae": 29.290661104485558,
+          "rmse": 32.984872534620614,
+          "r2": -0.0063994401542668555,
+          "n": 2347
+        },
+        "mae_improvement_pct": 69.5,
+        "beats_baseline": true
+      }
+    }
+  },
+  "feature_importance": {
+    "triglycerides": {
+      "waist_cm": 6.176,
+      "fat_g": 3.4818,
+      "age": 2.5102,
+      "bmi": 2.2049,
+      "mvpa_min_week": 1.6613,
+      "fibre_g": 1.6089,
+      "protein_g": 1.5555,
+      "satfat_g": 1.5375,
+      "carb_g": 1.5082,
+      "sugar_g": 1.4895,
+      "sex_male": 1.2002,
+      "energy_kcal": 1.1774,
+      "sleep_hours": 1.1358,
+      "smoking_status": 0.9683,
+      "sedentary_min_day": 0.8064,
+      "alcohol_drinks_week": 0.3995
+    },
+    "ggt": {
+      "energy_kcal": 1.2256,
+      "age": 0.8729,
+      "sex_male": 0.8382,
+      "fat_g": 0.6092,
+      "waist_cm": 0.5875,
+      "fibre_g": 0.3808,
+      "alcohol_drinks_week": 0.2864,
+      "bmi": 0.276,
+      "sugar_g": 0.2401,
+      "carb_g": 0.2104,
+      "satfat_g": 0.1849,
+      "mvpa_min_week": 0.1824,
+      "sleep_hours": 0.168,
+      "smoking_status": 0.1348,
+      "protein_g": 0.1232,
+      "sedentary_min_day": 0.1047
+    },
+    "hba1c": {
+      "age": 0.1276,
+      "waist_cm": 0.0352,
+      "energy_kcal": 0.0309,
+      "sugar_g": 0.0187,
+      "carb_g": 0.0171,
+      "fat_g": 0.0122,
+      "fibre_g": 0.0121,
+      "bmi": 0.012,
+      "protein_g": 0.0119,
+      "sleep_hours": 0.0114,
+      "sedentary_min_day": 0.0092,
+      "mvpa_min_week": 0.0082,
+      "satfat_g": 0.0069,
+      "alcohol_drinks_week": 0.0064,
+      "sex_male": 0.006,
+      "smoking_status": 0.0011
+    },
+    "systolic_bp": {
+      "age": 4.3401,
+      "bmi": 0.5962,
+      "sex_male": 0.5005,
+      "energy_kcal": 0.4191,
+      "waist_cm": 0.3562,
+      "fibre_g": 0.3076,
+      "satfat_g": 0.2841,
+      "sleep_hours": 0.2686,
+      "sugar_g": 0.2549,
+      "protein_g": 0.1978,
+      "carb_g": 0.195,
+      "fat_g": 0.1663,
+      "mvpa_min_week": 0.1434,
+      "sedentary_min_day": 0.1328,
+      "smoking_status": 0.1007,
+      "alcohol_drinks_week": 0.0723
+    },
+    "diastolic_bp": {
+      "age": 1.6082,
+      "sex_male": 0.2492,
+      "waist_cm": 0.2479,
+      "bmi": 0.2115,
+      "fibre_g": 0.1952,
+      "satfat_g": 0.182,
+      "protein_g": 0.1595,
+      "sugar_g": 0.1525,
+      "energy_kcal": 0.1493,
+      "alcohol_drinks_week": 0.1469,
+      "fat_g": 0.1442,
+      "carb_g": 0.1265,
+      "sedentary_min_day": 0.111,
+      "mvpa_min_week": 0.1033,
+      "sleep_hours": 0.0969,
+      "smoking_status": 0.0965
+    },
+    "fli": {
+      "waist_cm": 17.9977,
+      "bmi": 7.8296,
+      "age": 0.8458,
+      "fat_g": 0.7496,
+      "sex_male": 0.5586,
+      "energy_kcal": 0.4215,
+      "carb_g": 0.3188,
+      "mvpa_min_week": 0.2856,
+      "fibre_g": 0.2846,
+      "protein_g": 0.2651,
+      "sugar_g": 0.2574,
+      "satfat_g": 0.2394,
+      "smoking_status": 0.2094,
+      "sedentary_min_day": 0.1776,
+      "sleep_hours": 0.1708,
+      "alcohol_drinks_week": 0.1477
+    }
+  }
+}
