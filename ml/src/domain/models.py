@@ -320,6 +320,18 @@ class Biomarkers:
         return 100.0 * math.exp(z) / (1.0 + math.exp(z))
 
 
+class ScoreBasis(str, Enum):
+    """Which mechanism produced a score.
+
+    Provenance says how trustworthy the data was; basis says which model
+    answered. A calibrated classifier is a direct probability estimate; a
+    clinical formula is a deterministic transform of estimated biomarkers.
+    """
+
+    CALIBRATED_CLASSIFIER = "calibrated_classifier"
+    CLINICAL_FORMULA = "clinical_formula"
+
+
 @dataclass(frozen=True)
 class RiskScore:
     """A single condition's risk, inseparable from its provenance."""
@@ -328,6 +340,7 @@ class RiskScore:
     score: float                  # 0-100
     band: RiskBand
     provenance: Provenance
+    basis: ScoreBasis = ScoreBasis.CLINICAL_FORMULA
     rationale: str = ""
     contributors: tuple[str, ...] = field(default_factory=tuple)
 
@@ -341,12 +354,61 @@ class RiskScore:
 
 
 @dataclass(frozen=True)
+class AssessmentContext:
+    """Everything a scorer needs to judge one person.
+
+    Refactoring applied: **Introduce Parameter Object**. Scorers previously took
+    (profile, biomarkers, provenance); composition added calibrated
+    probabilities and an optional wearable window, which would have made a
+    four-argument call repeated at every site (a **Long Parameter List** and a
+    **Data Clump**). Widening the object leaves the scorer interface stable as
+    new signals are added.
+    """
+
+    profile: UserProfile
+    biomarkers: Biomarkers
+    window: "WearableWindow | None" = None
+    probabilities: dict = field(default_factory=dict)
+
+    def probability_for(self, condition: str) -> float | None:
+        """Calibrated probability in 0-1, or None if no classifier covers it."""
+        value = self.probabilities.get(condition)
+        return None if value is None else float(value)
+
+
+@dataclass(frozen=True)
+class TrajectoryPoint:
+    """One risk estimate at one point in a user's history."""
+
+    day_index: int
+    scores: dict          # condition -> 0-100
+    provenance: Provenance
+
+
+@dataclass(frozen=True)
+class RiskTrajectory:
+    """Risk over time plus its fitted direction.
+
+    `slope_per_week` is the least-squares gradient of the score. Positive means
+    risk is rising. `None` when there is too little history to fit a line --
+    an abstention rather than an invented trend.
+    """
+
+    condition: str
+    points: tuple[TrajectoryPoint, ...]
+    slope_per_week: float | None
+    direction: str        # "improving" | "stable" | "worsening" | "unknown"
+    provenance: Provenance
+
+
+@dataclass(frozen=True)
 class RiskAssessment:
     """The full multi-condition result returned to callers."""
 
     scores: tuple[RiskScore, ...]
     biomarkers: Biomarkers
     provenance: Provenance
+    trajectories: tuple[RiskTrajectory, ...] = field(default_factory=tuple)
     disclaimer: str = (
         "Advisory only. Niyantrana is not a medical device and does not diagnose. "
         "Confirm any concern with clinical testing."

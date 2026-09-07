@@ -15,7 +15,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..domain.models import (Biomarkers, RiskAssessment, UserProfile,
-                             WearableWindow)
+                             WearableDay, WearableWindow)
 
 
 class ProfileDTO(BaseModel):
@@ -46,14 +46,29 @@ class MeasuredBiomarkersDTO(BaseModel):
 
 class PredictRequest(BaseModel):
     user_data: ProfileDTO = Field(..., description="Static profile plus daily dietary totals")
-    watch_data: list[WearableDayDTO] = Field(..., description="Exactly 14 days, oldest first")
-    measured: MeasuredBiomarkersDTO | None = None
+    watch_data: list[WearableDayDTO] = Field(
+        default_factory=list,
+        description="Most recent 14 days, oldest first. Optional: the risk engine "
+                    "handles absent sleep and activity natively rather than "
+                    "having values invented for it.")
+    history: list[WearableDayDTO] = Field(
+        default_factory=list,
+        description="Full wearable history, oldest first. Supply at least 28 days "
+                    "to receive risk trajectories.")
+    measured: MeasuredBiomarkersDTO | None = Field(
+        default=None, description="Real lab values, which override every estimate")
 
-    def to_domain(self) -> tuple[UserProfile, WearableWindow, Biomarkers | None]:
+    def to_domain(self):
         profile = self.user_data.to_domain()
-        window = WearableWindow.from_records([d.model_dump() for d in self.watch_data])
+        window = (WearableWindow.from_records([d.model_dump() for d in self.watch_data])
+                  if self.watch_data else None)
+        history = ([WearableDay.from_dict(d.model_dump()) for d in self.history]
+                   if self.history else None)
+        # A supplied history implies the most recent window when none was given.
+        if window is None and history and len(history) >= 14:
+            window = WearableWindow(tuple(history[-14:]))
         measured = self.measured.to_domain() if self.measured else None
-        return profile, window, measured
+        return profile, window, history, measured
 
 
 class RiskScoreDTO(BaseModel):
@@ -61,8 +76,24 @@ class RiskScoreDTO(BaseModel):
     score: float
     band: str
     provenance: str
+    basis: str = Field(..., description="calibrated_classifier or clinical_formula")
     rationale: str
     contributors: list[str]
+
+
+class TrajectoryPointDTO(BaseModel):
+    day_index: int
+    score: float
+
+
+class TrajectoryDTO(BaseModel):
+    condition: str
+    points: list[TrajectoryPointDTO]
+    slope_per_week: float | None = Field(
+        None, description="Least-squares gradient. Null when history is too short "
+                          "to fit a trend -- an abstention, not a flat line.")
+    direction: str = Field(..., description="improving | stable | worsening | unknown")
+    provenance: str
 
 
 class BiomarkersDTO(BaseModel):
@@ -71,6 +102,7 @@ class BiomarkersDTO(BaseModel):
     hba1c: float | None = None
     systolic_bp: float | None = None
     diastolic_bp: float | None = None
+    fli: float | None = None
 
 
 class AssessmentResponse(BaseModel):
@@ -83,6 +115,7 @@ class AssessmentResponse(BaseModel):
 
     risks: list[RiskScoreDTO]
     biomarkers: BiomarkersDTO
+    trajectories: list[TrajectoryDTO] = Field(default_factory=list)
     provenance: str
     disclaimer: str
 
@@ -90,10 +123,20 @@ class AssessmentResponse(BaseModel):
     def from_domain(cls, assessment: RiskAssessment) -> "AssessmentResponse":
         return cls(
             risks=[RiskScoreDTO(condition=s.condition, score=s.score, band=s.band.value,
-                                provenance=s.provenance.value, rationale=s.rationale,
-                                contributors=list(s.contributors))
+                                provenance=s.provenance.value, basis=s.basis.value,
+                                rationale=s.rationale, contributors=list(s.contributors))
                    for s in assessment.scores],
             biomarkers=BiomarkersDTO(**vars(assessment.biomarkers)),
+            trajectories=[
+                TrajectoryDTO(
+                    condition=t.condition,
+                    points=[TrajectoryPointDTO(day_index=p.day_index,
+                                               score=p.scores.get(t.condition, 0.0))
+                            for p in t.points],
+                    slope_per_week=t.slope_per_week,
+                    direction=t.direction,
+                    provenance=t.provenance.value)
+                for t in assessment.trajectories],
             provenance=assessment.provenance.value,
             disclaimer=assessment.disclaimer,
         )

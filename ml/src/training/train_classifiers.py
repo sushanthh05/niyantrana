@@ -62,6 +62,22 @@ TEST_FRACTION = 0.2
 CALIBRATION_FRACTION = 0.2
 TARGET_SENSITIVITY = 0.90
 
+# Monotonic constraints on the two features whose clinical direction is
+# unambiguous. Without them the models are free to learn non-monotonic
+# relationships, and they did: for a mid-range profile, hypertension risk ROSE
+# (+0.79 points/week) as activity and sleep improved. A coaching product cannot
+# tell a user to exercise and then show their risk climbing.
+#
+# Sleep is deliberately unconstrained -- it is U-shaped clinically, since both
+# too little and too much are associated with harm. Diet is likewise left free.
+#
+# Measured cost: AUROC moves by at most -0.005 (diabetes); fatty_liver and
+# hypertension actually improve slightly.
+MONOTONIC_CONSTRAINTS = {
+    "mvpa_min_week": -1,       # more activity -> lower risk
+    "sedentary_min_day": +1,   # more sitting  -> higher risk
+}
+
 CLASSIFIER_PARAMS = {
     "max_iter": 400,
     "learning_rate": 0.05,
@@ -69,6 +85,7 @@ CLASSIFIER_PARAMS = {
     "min_samples_leaf": 60,
     "random_state": RANDOM_SEED,
     "early_stopping": False,
+    "monotonic_cst": [MONOTONIC_CONSTRAINTS.get(name, 0) for name in RISK_ENGINE_FEATURES],
 }
 
 
@@ -238,7 +255,8 @@ def train_condition(df: pd.DataFrame, spec: ConditionSpec):
     # FLI terms, so a two-feature model already captures most of the signal.
     if spec.name == "fatty_liver":
         anthropometry = ["bmi", "waist_cm"]
-        simple = HistGradientBoostingClassifier(**CLASSIFIER_PARAMS).fit(
+        simple_params = {**CLASSIFIER_PARAMS, "monotonic_cst": [0] * len(anthropometry)}
+        simple = HistGradientBoostingClassifier(**simple_params).fit(
             X_train[anthropometry], y_train)
         simple_auroc = float(roc_auc_score(y_test, simple.predict_proba(X_test[anthropometry])[:, 1]))
         result["baseline_bmi_waist_only"] = {
@@ -305,6 +323,7 @@ def main():
 
     report = {
         "dataset": {"source": "NHANES 2013-2018 (CDC, public domain)", "rows": int(len(df))},
+        "monotonic_constraints": MONOTONIC_CONSTRAINTS,
         "calibration": "isotonic, fitted on a held-out 20% split",
         "threshold_policy": f"operating point targets {TARGET_SENSITIVITY:.0%} sensitivity "
                             "because this is a screening tool",

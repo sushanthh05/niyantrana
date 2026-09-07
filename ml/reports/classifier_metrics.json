@@ -3,6 +3,10 @@
     "source": "NHANES 2013-2018 (CDC, public domain)",
     "rows": 17961
   },
+  "monotonic_constraints": {
+    "mvpa_min_week": -1,
+    "sedentary_min_day": 1
+  },
   "calibration": "isotonic, fitted on a held-out 20% split",
   "threshold_policy": "operating point targets 90% sensitivity because this is a screening tool",
   "conditions": {
@@ -13,89 +17,89 @@
       "n_test": 1431,
       "prevalence": 0.4268,
       "auroc": 0.9577,
-      "auprc": 0.9359,
-      "brier_uncalibrated": 0.083,
-      "brier_calibrated": 0.0817,
+      "auprc": 0.9364,
+      "brier_uncalibrated": 0.0827,
+      "brier_calibrated": 0.0827,
       "operating_points": {
         "high_sensitivity": {
-          "threshold": 0.4153,
-          "sensitivity": 0.9214,
-          "specificity": 0.8317,
-          "ppv": 0.8031,
-          "npv": 0.9342,
-          "tp": 563,
-          "fp": 138,
-          "fn": 48,
-          "tn": 682
+          "threshold": 0.414,
+          "sensitivity": 0.9018,
+          "specificity": 0.8463,
+          "ppv": 0.8139,
+          "npv": 0.9204,
+          "tp": 551,
+          "fp": 126,
+          "fn": 60,
+          "tn": 694
         },
         "youden": {
-          "threshold": 0.415,
-          "sensitivity": 0.9214,
-          "specificity": 0.8317,
-          "ppv": 0.8031,
-          "npv": 0.9342,
-          "tp": 563,
-          "fp": 138,
-          "fn": 48,
-          "tn": 682
+          "threshold": 0.31,
+          "sensitivity": 0.9034,
+          "specificity": 0.8463,
+          "ppv": 0.8142,
+          "npv": 0.9216,
+          "tp": 552,
+          "fp": 126,
+          "fn": 59,
+          "tn": 694
         },
         "default_0.5": {
           "threshold": 0.5,
-          "sensitivity": 0.802,
-          "specificity": 0.9415,
-          "ppv": 0.9108,
-          "npv": 0.8645,
-          "tp": 490,
-          "fp": 48,
-          "fn": 121,
-          "tn": 772
+          "sensitivity": 0.8036,
+          "specificity": 0.9402,
+          "ppv": 0.9093,
+          "npv": 0.8653,
+          "tp": 491,
+          "fp": 49,
+          "fn": 120,
+          "tn": 771
         }
       },
       "reliability_curve": [
         {
           "bin": "0.0-0.1",
-          "n": 578,
-          "mean_predicted": 0.0274,
-          "observed_frequency": 0.0242
+          "n": 513,
+          "mean_predicted": 0.0154,
+          "observed_frequency": 0.0097
         },
         {
           "bin": "0.1-0.2",
-          "n": 112,
-          "mean_predicted": 0.1413,
-          "observed_frequency": 0.2232
+          "n": 172,
+          "mean_predicted": 0.1321,
+          "observed_frequency": 0.1802
         },
         {
           "bin": "0.2-0.3",
-          "n": 32,
-          "mean_predicted": 0.2571,
-          "observed_frequency": 0.1875
+          "n": 68,
+          "mean_predicted": 0.2256,
+          "observed_frequency": 0.3382
         },
         {
           "bin": "0.4-0.5",
-          "n": 164,
-          "mean_predicted": 0.4153,
-          "observed_frequency": 0.4512
+          "n": 137,
+          "mean_predicted": 0.4148,
+          "observed_frequency": 0.438
         },
         {
           "bin": "0.5-0.6",
-          "n": 89,
-          "mean_predicted": 0.5688,
-          "observed_frequency": 0.6742
+          "n": 85,
+          "mean_predicted": 0.567,
+          "observed_frequency": 0.6706
         },
         {
           "bin": "0.8-0.9",
-          "n": 85,
-          "mean_predicted": 0.8748,
-          "observed_frequency": 0.8235
+          "n": 114,
+          "mean_predicted": 0.8639,
+          "observed_frequency": 0.8509
         },
         {
           "bin": "0.9-1.0",
-          "n": 360,
-          "mean_predicted": 0.9907,
-          "observed_frequency": 0.9889
+          "n": 341,
+          "mean_predicted": 0.9947,
+          "observed_frequency": 0.9883
         }
       ],
-      "selected_threshold": 0.4153,
+      "selected_threshold": 0.414,
       "baseline_bmi_waist_only": {
         "auroc": 0.9548,
         "auroc_gain_from_other_features": 0.0029
@@ -107,108 +111,108 @@
       "n_train": 9834,
       "n_test": 3279,
       "prevalence": 0.4123,
-      "auroc": 0.7991,
-      "auprc": 0.6888,
-      "brier_uncalibrated": 0.1786,
-      "brier_calibrated": 0.1803,
+      "auroc": 0.7989,
+      "auprc": 0.6835,
+      "brier_uncalibrated": 0.1792,
+      "brier_calibrated": 0.1793,
       "operating_points": {
         "high_sensitivity": {
-          "threshold": 0.2,
-          "sensitivity": 0.9342,
-          "specificity": 0.4338,
-          "ppv": 0.5365,
-          "npv": 0.9038,
-          "tp": 1263,
-          "fp": 1091,
-          "fn": 89,
-          "tn": 836
+          "threshold": 0.25,
+          "sensitivity": 0.9024,
+          "specificity": 0.5096,
+          "ppv": 0.5635,
+          "npv": 0.8815,
+          "tp": 1220,
+          "fp": 945,
+          "fn": 132,
+          "tn": 982
         },
         "youden": {
-          "threshold": 0.424,
-          "sensitivity": 0.7663,
-          "specificity": 0.699,
-          "ppv": 0.6411,
-          "npv": 0.81,
-          "tp": 1036,
-          "fp": 580,
-          "fn": 316,
-          "tn": 1347
+          "threshold": 0.441,
+          "sensitivity": 0.8143,
+          "specificity": 0.6492,
+          "ppv": 0.6196,
+          "npv": 0.8329,
+          "tp": 1101,
+          "fp": 676,
+          "fn": 251,
+          "tn": 1251
         },
         "default_0.5": {
           "threshold": 0.5,
-          "sensitivity": 0.6716,
-          "specificity": 0.767,
-          "ppv": 0.6691,
-          "npv": 0.769,
-          "tp": 908,
-          "fp": 449,
-          "fn": 444,
-          "tn": 1478
+          "sensitivity": 0.6849,
+          "specificity": 0.7711,
+          "ppv": 0.6774,
+          "npv": 0.7772,
+          "tp": 926,
+          "fp": 441,
+          "fn": 426,
+          "tn": 1486
         }
       },
       "reliability_curve": [
         {
           "bin": "0.0-0.1",
-          "n": 611,
-          "mean_predicted": 0.0562,
-          "observed_frequency": 0.0655
+          "n": 513,
+          "mean_predicted": 0.0495,
+          "observed_frequency": 0.0565
         },
         {
           "bin": "0.1-0.2",
-          "n": 314,
-          "mean_predicted": 0.1618,
-          "observed_frequency": 0.1561
+          "n": 386,
+          "mean_predicted": 0.1437,
+          "observed_frequency": 0.1321
         },
         {
           "bin": "0.2-0.3",
-          "n": 277,
-          "mean_predicted": 0.2613,
+          "n": 215,
+          "mean_predicted": 0.2483,
           "observed_frequency": 0.2419
         },
         {
           "bin": "0.3-0.4",
-          "n": 461,
-          "mean_predicted": 0.3909,
-          "observed_frequency": 0.3471
+          "n": 388,
+          "mean_predicted": 0.3361,
+          "observed_frequency": 0.3067
         },
         {
           "bin": "0.4-0.5",
-          "n": 259,
-          "mean_predicted": 0.4505,
-          "observed_frequency": 0.4942
+          "n": 410,
+          "mean_predicted": 0.4485,
+          "observed_frequency": 0.4268
         },
         {
           "bin": "0.5-0.6",
-          "n": 440,
-          "mean_predicted": 0.5346,
-          "observed_frequency": 0.5614
+          "n": 470,
+          "mean_predicted": 0.5654,
+          "observed_frequency": 0.5957
         },
         {
           "bin": "0.6-0.7",
-          "n": 306,
-          "mean_predicted": 0.685,
-          "observed_frequency": 0.6373
+          "n": 232,
+          "mean_predicted": 0.663,
+          "observed_frequency": 0.6466
         },
         {
           "bin": "0.7-0.8",
-          "n": 540,
-          "mean_predicted": 0.754,
-          "observed_frequency": 0.7667
+          "n": 566,
+          "mean_predicted": 0.737,
+          "observed_frequency": 0.7456
         },
         {
           "bin": "0.8-0.9",
-          "n": 22,
-          "mean_predicted": 0.8834,
-          "observed_frequency": 0.6364
+          "n": 60,
+          "mean_predicted": 0.803,
+          "observed_frequency": 0.75
         },
         {
           "bin": "0.9-1.0",
-          "n": 49,
-          "mean_predicted": 0.9907,
-          "observed_frequency": 0.7755
+          "n": 39,
+          "mean_predicted": 0.9269,
+          "observed_frequency": 0.7436
         }
       ],
-      "selected_threshold": 0.2
+      "selected_threshold": 0.25
     },
     "diabetes": {
       "definition": "HbA1c >= 6.5 or diagnosed diabetes",
@@ -216,84 +220,84 @@
       "n_train": 9834,
       "n_test": 3279,
       "prevalence": 0.169,
-      "auroc": 0.799,
-      "auprc": 0.3825,
-      "brier_uncalibrated": 0.1199,
-      "brier_calibrated": 0.1183,
+      "auroc": 0.7991,
+      "auprc": 0.3716,
+      "brier_uncalibrated": 0.1198,
+      "brier_calibrated": 0.1185,
       "operating_points": {
         "high_sensitivity": {
-          "threshold": 0.1207,
-          "sensitivity": 0.9025,
-          "specificity": 0.5494,
-          "ppv": 0.2894,
-          "npv": 0.9652,
-          "tp": 500,
-          "fp": 1228,
-          "fn": 54,
-          "tn": 1497
+          "threshold": 0.1008,
+          "sensitivity": 0.9079,
+          "specificity": 0.5428,
+          "ppv": 0.2876,
+          "npv": 0.9667,
+          "tp": 503,
+          "fp": 1246,
+          "fn": 51,
+          "tn": 1479
         },
         "youden": {
-          "threshold": 0.132,
-          "sensitivity": 0.8682,
-          "specificity": 0.5985,
-          "ppv": 0.3054,
-          "npv": 0.9572,
-          "tp": 481,
-          "fp": 1094,
-          "fn": 73,
-          "tn": 1631
+          "threshold": 0.159,
+          "sensitivity": 0.8195,
+          "specificity": 0.6572,
+          "ppv": 0.3271,
+          "npv": 0.9471,
+          "tp": 454,
+          "fp": 934,
+          "fn": 100,
+          "tn": 1791
         },
         "default_0.5": {
           "threshold": 0.5,
-          "sensitivity": 0.0884,
-          "specificity": 0.985,
-          "ppv": 0.5444,
-          "npv": 0.8416,
-          "tp": 49,
-          "fp": 41,
-          "fn": 505,
-          "tn": 2684
+          "sensitivity": 0.0523,
+          "specificity": 0.9905,
+          "ppv": 0.5273,
+          "npv": 0.8372,
+          "tp": 29,
+          "fp": 26,
+          "fn": 525,
+          "tn": 2699
         }
       },
       "reliability_curve": [
         {
           "bin": "0.0-0.1",
-          "n": 1460,
-          "mean_predicted": 0.0418,
-          "observed_frequency": 0.0288
+          "n": 1133,
+          "mean_predicted": 0.0247,
+          "observed_frequency": 0.0212
         },
         {
           "bin": "0.1-0.2",
-          "n": 572,
-          "mean_predicted": 0.1452,
-          "observed_frequency": 0.1556
+          "n": 963,
+          "mean_predicted": 0.1268,
+          "observed_frequency": 0.1246
         },
         {
           "bin": "0.2-0.3",
-          "n": 668,
-          "mean_predicted": 0.2467,
-          "observed_frequency": 0.2695
+          "n": 606,
+          "mean_predicted": 0.2699,
+          "observed_frequency": 0.2756
         },
         {
           "bin": "0.3-0.4",
-          "n": 214,
-          "mean_predicted": 0.3734,
-          "observed_frequency": 0.3832
+          "n": 107,
+          "mean_predicted": 0.3235,
+          "observed_frequency": 0.4486
         },
         {
           "bin": "0.4-0.5",
-          "n": 275,
-          "mean_predicted": 0.4146,
-          "observed_frequency": 0.4073
+          "n": 415,
+          "mean_predicted": 0.4184,
+          "observed_frequency": 0.4
         },
         {
           "bin": "0.5-0.6",
-          "n": 88,
-          "mean_predicted": 0.5345,
-          "observed_frequency": 0.5568
+          "n": 49,
+          "mean_predicted": 0.5499,
+          "observed_frequency": 0.5306
         }
       ],
-      "selected_threshold": 0.1207
+      "selected_threshold": 0.1008
     },
     "hypertension": {
       "definition": "BP >= 130/80 or on BP medication",
@@ -301,182 +305,176 @@
       "n_train": 9921,
       "n_test": 3308,
       "prevalence": 0.4983,
-      "auroc": 0.8024,
-      "auprc": 0.7455,
-      "brier_uncalibrated": 0.1793,
-      "brier_calibrated": 0.1788,
+      "auroc": 0.8013,
+      "auprc": 0.748,
+      "brier_uncalibrated": 0.1794,
+      "brier_calibrated": 0.1793,
       "operating_points": {
         "high_sensitivity": {
-          "threshold": 0.2601,
-          "sensitivity": 0.9066,
-          "specificity": 0.5325,
-          "ppv": 0.6581,
-          "npv": 0.8516,
-          "tp": 1494,
-          "fp": 776,
-          "fn": 154,
-          "tn": 884
+          "threshold": 0.2778,
+          "sensitivity": 0.9157,
+          "specificity": 0.5145,
+          "ppv": 0.6518,
+          "npv": 0.86,
+          "tp": 1509,
+          "fp": 806,
+          "fn": 139,
+          "tn": 854
         },
         "youden": {
-          "threshold": 0.518,
-          "sensitivity": 0.8167,
-          "specificity": 0.6602,
-          "ppv": 0.7047,
-          "npv": 0.784,
-          "tp": 1346,
-          "fp": 564,
-          "fn": 302,
-          "tn": 1096
+          "threshold": 0.477,
+          "sensitivity": 0.8544,
+          "specificity": 0.6193,
+          "ppv": 0.6902,
+          "npv": 0.8107,
+          "tp": 1408,
+          "fp": 632,
+          "fn": 240,
+          "tn": 1028
         },
         "default_0.5": {
           "threshold": 0.5,
-          "sensitivity": 0.8167,
-          "specificity": 0.659,
-          "ppv": 0.704,
-          "npv": 0.7837,
-          "tp": 1346,
-          "fp": 566,
-          "fn": 302,
-          "tn": 1094
+          "sensitivity": 0.7646,
+          "specificity": 0.7145,
+          "ppv": 0.7266,
+          "npv": 0.7535,
+          "tp": 1260,
+          "fp": 474,
+          "fn": 388,
+          "tn": 1186
         }
       },
       "reliability_curve": [
         {
           "bin": "0.0-0.1",
-          "n": 411,
-          "mean_predicted": 0.0626,
-          "observed_frequency": 0.056
+          "n": 266,
+          "mean_predicted": 0.0516,
+          "observed_frequency": 0.0489
         },
         {
           "bin": "0.1-0.2",
-          "n": 481,
-          "mean_predicted": 0.177,
-          "observed_frequency": 0.1746
+          "n": 618,
+          "mean_predicted": 0.149,
+          "observed_frequency": 0.1667
         },
         {
           "bin": "0.2-0.3",
-          "n": 275,
-          "mean_predicted": 0.2452,
-          "observed_frequency": 0.3273
+          "n": 200,
+          "mean_predicted": 0.2566,
+          "observed_frequency": 0.26
         },
         {
           "bin": "0.3-0.4",
-          "n": 85,
-          "mean_predicted": 0.3842,
-          "observed_frequency": 0.4353
+          "n": 151,
+          "mean_predicted": 0.3313,
+          "observed_frequency": 0.3841
         },
         {
           "bin": "0.4-0.5",
-          "n": 144,
-          "mean_predicted": 0.4591,
-          "observed_frequency": 0.4722
+          "n": 339,
+          "mean_predicted": 0.4697,
+          "observed_frequency": 0.4779
         },
         {
           "bin": "0.5-0.6",
-          "n": 487,
-          "mean_predicted": 0.5382,
-          "observed_frequency": 0.5421
+          "n": 252,
+          "mean_predicted": 0.5598,
+          "observed_frequency": 0.5595
         },
         {
           "bin": "0.6-0.7",
-          "n": 385,
-          "mean_predicted": 0.6839,
-          "observed_frequency": 0.7195
+          "n": 214,
+          "mean_predicted": 0.6407,
+          "observed_frequency": 0.6916
         },
         {
           "bin": "0.7-0.8",
-          "n": 446,
-          "mean_predicted": 0.7729,
-          "observed_frequency": 0.7444
+          "n": 483,
+          "mean_predicted": 0.7306,
+          "observed_frequency": 0.7391
         },
         {
           "bin": "0.8-0.9",
-          "n": 558,
-          "mean_predicted": 0.8408,
-          "observed_frequency": 0.7939
-        },
-        {
-          "bin": "0.9-1.0",
-          "n": 36,
-          "mean_predicted": 0.9192,
-          "observed_frequency": 0.8333
+          "n": 778,
+          "mean_predicted": 0.8319,
+          "observed_frequency": 0.7815
         }
       ],
-      "selected_threshold": 0.2601
+      "selected_threshold": 0.2778
     }
   },
   "shap_importance": {
     "fatty_liver": {
-      "waist_cm": 3.20308,
-      "bmi": 1.86321,
-      "fat_g": 0.2497,
-      "age": 0.24759,
-      "mvpa_min_week": 0.21596,
-      "energy_kcal": 0.2121,
-      "sex_male": 0.17487,
-      "carb_g": 0.14444,
-      "satfat_g": 0.14316,
-      "sugar_g": 0.12586,
-      "fibre_g": 0.11415,
-      "protein_g": 0.10086,
-      "sedentary_min_day": 0.09756,
-      "sleep_hours": 0.07912,
-      "smoking_status": 0.06927,
-      "alcohol_drinks_week": 0.04529
+      "waist_cm": 3.17583,
+      "bmi": 1.94751,
+      "mvpa_min_week": 0.26263,
+      "fat_g": 0.2598,
+      "age": 0.24004,
+      "energy_kcal": 0.22639,
+      "sex_male": 0.19206,
+      "carb_g": 0.15438,
+      "satfat_g": 0.13192,
+      "fibre_g": 0.12553,
+      "sugar_g": 0.12016,
+      "protein_g": 0.11713,
+      "sleep_hours": 0.10097,
+      "sedentary_min_day": 0.08958,
+      "smoking_status": 0.0879,
+      "alcohol_drinks_week": 0.04977
     },
     "dysglycaemia": {
-      "age": 1.06928,
-      "bmi": 0.30269,
-      "waist_cm": 0.27238,
-      "energy_kcal": 0.18067,
-      "carb_g": 0.12769,
-      "sleep_hours": 0.11369,
-      "mvpa_min_week": 0.10826,
-      "sedentary_min_day": 0.09516,
-      "sex_male": 0.08186,
-      "sugar_g": 0.0791,
-      "fibre_g": 0.0764,
-      "fat_g": 0.07458,
-      "protein_g": 0.07136,
-      "alcohol_drinks_week": 0.06502,
-      "satfat_g": 0.05572,
-      "smoking_status": 0.03779
+      "age": 1.07141,
+      "bmi": 0.29746,
+      "waist_cm": 0.26924,
+      "energy_kcal": 0.17752,
+      "carb_g": 0.14528,
+      "sleep_hours": 0.1292,
+      "mvpa_min_week": 0.11895,
+      "sex_male": 0.08939,
+      "fibre_g": 0.08174,
+      "sugar_g": 0.08043,
+      "protein_g": 0.0768,
+      "fat_g": 0.07401,
+      "alcohol_drinks_week": 0.062,
+      "satfat_g": 0.05952,
+      "smoking_status": 0.0458,
+      "sedentary_min_day": 0.01731
     },
     "diabetes": {
-      "age": 1.1415,
-      "waist_cm": 0.55056,
-      "sugar_g": 0.32938,
-      "bmi": 0.19634,
-      "mvpa_min_week": 0.17911,
-      "carb_g": 0.15324,
-      "fibre_g": 0.11836,
-      "alcohol_drinks_week": 0.11573,
-      "sex_male": 0.11467,
-      "energy_kcal": 0.11302,
-      "sleep_hours": 0.10474,
-      "fat_g": 0.10075,
-      "protein_g": 0.09365,
-      "sedentary_min_day": 0.07537,
-      "satfat_g": 0.06955,
-      "smoking_status": 0.01749
+      "age": 1.14334,
+      "waist_cm": 0.55109,
+      "sugar_g": 0.32451,
+      "bmi": 0.20953,
+      "mvpa_min_week": 0.16763,
+      "carb_g": 0.16554,
+      "sleep_hours": 0.12581,
+      "energy_kcal": 0.11853,
+      "fibre_g": 0.1065,
+      "sex_male": 0.1051,
+      "alcohol_drinks_week": 0.10417,
+      "fat_g": 0.09084,
+      "protein_g": 0.08466,
+      "satfat_g": 0.07979,
+      "sedentary_min_day": 0.02531,
+      "smoking_status": 0.01429
     },
     "hypertension": {
-      "age": 1.25515,
-      "waist_cm": 0.25604,
-      "bmi": 0.2144,
-      "sex_male": 0.18156,
-      "energy_kcal": 0.1455,
-      "fibre_g": 0.13606,
-      "sugar_g": 0.09977,
-      "carb_g": 0.0792,
-      "sleep_hours": 0.07874,
-      "fat_g": 0.07425,
-      "mvpa_min_week": 0.07156,
-      "protein_g": 0.06496,
-      "satfat_g": 0.06273,
-      "sedentary_min_day": 0.04955,
-      "alcohol_drinks_week": 0.03062,
-      "smoking_status": 0.01414
+      "age": 1.2447,
+      "waist_cm": 0.25452,
+      "bmi": 0.21644,
+      "sex_male": 0.18879,
+      "energy_kcal": 0.15182,
+      "fibre_g": 0.13997,
+      "sugar_g": 0.09917,
+      "carb_g": 0.08564,
+      "sleep_hours": 0.08208,
+      "protein_g": 0.07732,
+      "satfat_g": 0.07453,
+      "fat_g": 0.07443,
+      "mvpa_min_week": 0.05686,
+      "alcohol_drinks_week": 0.03685,
+      "sedentary_min_day": 0.02179,
+      "smoking_status": 0.01599
     }
   },
   "sanity_check": {
@@ -486,18 +484,18 @@
       "ordered_correctly": true
     },
     "dysglycaemia": {
-      "low_risk_profile": 0.0777,
-      "high_risk_profile": 0.7609,
+      "low_risk_profile": 0.0565,
+      "high_risk_profile": 0.787,
       "ordered_correctly": true
     },
     "diabetes": {
-      "low_risk_profile": 0.0223,
-      "high_risk_profile": 0.4081,
+      "low_risk_profile": 0.0112,
+      "high_risk_profile": 0.4185,
       "ordered_correctly": true
     },
     "hypertension": {
-      "low_risk_profile": 0.1723,
-      "high_risk_profile": 0.8549,
+      "low_risk_profile": 0.1078,
+      "high_risk_profile": 0.8321,
       "ordered_correctly": true
     }
   }

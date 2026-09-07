@@ -10,8 +10,8 @@ import os
 
 import pytest
 
-from src.domain import (Biomarkers, InferenceError, Provenance, RiskBand,
-                        UserProfile, WearableWindow)
+from src.domain import (AssessmentContext, Biomarkers, InferenceError, Provenance,
+                        RiskBand, UserProfile, WearableWindow)
 from src.inference.risk_engine import RiskEnginePredictor
 from src.risk.assessor import RiskAssessor
 from src.risk.scorers import (DEFAULT_SCORERS, DysglycaemiaScorer,
@@ -39,6 +39,12 @@ def _window(**overrides):
            "heart_rate_variability": 50}
     day.update(overrides)
     return WearableWindow.from_records([day] * 14)
+
+
+def _context(biomarkers, profile=None, probabilities=None):
+    """Build the scorer parameter object."""
+    return AssessmentContext(profile=profile or _profile(), biomarkers=biomarkers,
+                             probabilities=probabilities or {})
 
 
 @pytest.fixture(scope="module")
@@ -109,7 +115,7 @@ def test_substitutes_into_the_assessor(engine):
     """The engine is interchangeable with BiomarkerPredictor (Liskov)."""
     assessment = RiskAssessor(engine).assess(_profile(), _window())
     conditions = {s.condition for s in assessment.scores}
-    assert conditions == {"fatty_liver", "dysglycaemia", "hypertension"}
+    assert conditions == {"fatty_liver", "dysglycaemia", "diabetes", "hypertension"}
     assert assessment.provenance is Provenance.MODEL
 
 
@@ -118,11 +124,11 @@ def test_scorers_abstain_when_inputs_are_missing():
     """An abstention, not a fabricated default. v1 substituted the literal 50."""
     empty = Biomarkers()
     for scorer in DEFAULT_SCORERS:
-        assert scorer.score(_profile(), empty, Provenance.MODEL) is None
+        assert scorer.score(_context(empty), Provenance.MODEL) is None
 
 
 def test_fatty_liver_scorer_uses_a_direct_estimate():
-    score = FattyLiverScorer().score(_profile(), Biomarkers(fli=78.0), Provenance.MODEL)
+    score = FattyLiverScorer().score(_context(Biomarkers(fli=78.0)), Provenance.MODEL)
     assert score.score == 78.0
     assert score.band is RiskBand.HIGH
     assert "waist circumference" in score.contributors
@@ -131,16 +137,16 @@ def test_fatty_liver_scorer_uses_a_direct_estimate():
 @pytest.mark.parametrize("hba1c,band", [(5.0, RiskBand.LOW), (6.0, RiskBand.MODERATE),
                                         (7.5, RiskBand.HIGH)])
 def test_dysglycaemia_bands_follow_ada_thresholds(hba1c, band):
-    score = DysglycaemiaScorer().score(_profile(), Biomarkers(hba1c=hba1c), Provenance.MODEL)
+    score = DysglycaemiaScorer().score(_context(Biomarkers(hba1c=hba1c)), Provenance.MODEL)
     assert score.band is band
 
 
 def test_hypertension_uses_the_worse_of_the_two_readings():
     """Either reading alone is sufficient for a diagnosis."""
     systolic_only = HypertensionScorer().score(
-        _profile(), Biomarkers(systolic_bp=165, diastolic_bp=70), Provenance.MODEL)
+        _context(Biomarkers(systolic_bp=165, diastolic_bp=70)), Provenance.MODEL)
     diastolic_only = HypertensionScorer().score(
-        _profile(), Biomarkers(systolic_bp=115, diastolic_bp=105), Provenance.MODEL)
+        _context(Biomarkers(systolic_bp=115, diastolic_bp=105)), Provenance.MODEL)
     assert systolic_only.band is RiskBand.HIGH
     assert diastolic_only.band is RiskBand.HIGH
 
@@ -148,7 +154,7 @@ def test_hypertension_uses_the_worse_of_the_two_readings():
 def test_every_score_declares_provenance():
     biomarkers = Biomarkers(fli=50.0, hba1c=5.9, systolic_bp=135, diastolic_bp=85)
     for scorer in DEFAULT_SCORERS:
-        score = scorer.score(_profile(), biomarkers, Provenance.SIMULATION)
+        score = scorer.score(_context(biomarkers), Provenance.SIMULATION)
         assert score.provenance is Provenance.SIMULATION
         assert score.rationale, "a score without a rationale is not actionable"
 

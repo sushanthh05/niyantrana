@@ -5,12 +5,15 @@ rather than reaching into individual modules.
 """
 from .errors import (ArtifactsMissingError, InferenceError, MissingFeatureError,
                      NiyantranaError, RecommenderUnavailableError, ValidationError)
-from .models import (Biomarkers, Provenance, RiskAssessment, RiskBand, RiskScore,
-                     Sex, UserProfile, WearableDay, WearableWindow, SEQUENCE_LENGTH)
+from .models import (AssessmentContext, Biomarkers, Provenance, RiskAssessment,
+                     RiskBand, RiskScore, RiskTrajectory, ScoreBasis, Sex,
+                     TrajectoryPoint, UserProfile, WearableDay, WearableWindow,
+                     SEQUENCE_LENGTH)
 
 __all__ = [
     "ArtifactsMissingError", "InferenceError", "MissingFeatureError",
     "NiyantranaError", "RecommenderUnavailableError", "ValidationError",
-    "Biomarkers", "Provenance", "RiskAssessment", "RiskBand", "RiskScore",
-    "Sex", "UserProfile", "WearableDay", "WearableWindow", "SEQUENCE_LENGTH",
+    "AssessmentContext", "Biomarkers", "Provenance", "RiskAssessment", "RiskBand",
+    "RiskScore", "RiskTrajectory", "ScoreBasis", "Sex", "TrajectoryPoint",
+    "UserProfile", "WearableDay", "WearableWindow", "SEQUENCE_LENGTH",
 ]

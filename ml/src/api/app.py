@@ -95,8 +95,9 @@ def health():
 @app.post("/predict", response_model=AssessmentResponse)
 def predict(request: PredictRequest, assessor: RiskAssessor = Depends(get_assessor)):
     """Assess fatty-liver, dysglycaemia and hypertension risk."""
-    profile, window, measured = request.to_domain()
-    return AssessmentResponse.from_domain(assessor.assess(profile, window, measured))
+    profile, window, history, measured = request.to_domain()
+    return AssessmentResponse.from_domain(
+        assessor.assess(profile, window, measured, history=history))
 
 
 @app.post("/recommend", response_model=RecommendResponse)

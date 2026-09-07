@@ -274,3 +274,115 @@ that, and it runs at training time and again as a test.
     well-controlled patient is a true case with normal physiology, so the model
     is partly learning "who gets prescribed medication", which tracks healthcare
     access and is not purely biological.
+
+---
+
+# Part 3 — Composition and Trajectory (Day 4)
+
+## 16. The most important bug found so far
+
+While building the trajectory feature, the composed system was run over 12 weeks
+of steadily *improving* behaviour (steps 3,000 -> 12,000; sleep 5.4h -> 7.6h)
+across five profiles. For a mid-range profile, **hypertension risk rose**:
+
+| profile | fatty_liver | hypertension | dysglycaemia | diabetes |
+|---|---|---|---|---|
+| lean 30F waist 72 | -0.00 | -0.07 | -0.34 | -0.00 |
+| **mid 45M waist 95** | -0.00 | **+0.79** | -0.94 | -0.37 |
+| obese 52M waist 108 | -0.56 | -0.56 | -0.49 | -0.00 |
+| obese+diet 52M | -0.10 | -1.44 | -0.84 | -0.05 |
+| severe 60M waist 125 | -0.00 | -0.54 | -0.35 | -0.00 |
+
+*(slope in risk points per week; negative is improving)*
+
+Gradient boosting is free to fit non-monotonic relationships and it did. **A
+coaching product cannot tell a user to exercise more and then show their risk
+climbing.** Aggregate metrics were healthy throughout: AUROC 0.80, calibration
+within 0.05, sanity check passing. Only walking a trajectory exposed it.
+
+### Fix: monotonic constraints
+
+`HistGradientBoostingClassifier` accepts per-feature monotonic constraints. Two
+features have an unambiguous clinical direction:
+
+| Feature | Constraint |
+|---|---|
+| `mvpa_min_week` | decreasing (more activity -> lower risk) |
+| `sedentary_min_day` | increasing (more sitting -> higher risk) |
+
+**Sleep is deliberately left unconstrained** because it is U-shaped clinically:
+both too little and too much are associated with harm. Diet is likewise free.
+
+Measured cost:
+
+| Condition | AUROC free | AUROC constrained | Delta |
+|---|---|---|---|
+| fatty_liver | 0.9600 | 0.9606 | **+0.0005** |
+| hypertension | 0.8072 | 0.8082 | **+0.0010** |
+| dysglycaemia | 0.8038 | 0.8015 | -0.0023 |
+| diabetes | 0.8070 | 0.8016 | -0.0053 |
+
+After the fix, **zero conditions rise with improving behaviour across all five
+profiles.** `test_improving_behaviour_never_raises_any_risk` runs this check
+over four profiles and fails the build if it regresses.
+
+This is the cheapest 0.005 AUROC ever spent.
+
+## 17. Composition: what supplies each number
+
+| Output | Source |
+|---|---|
+| Condition probability | Calibrated classifier (Part 2) |
+| Biomarker levels | NHANES regression engine (Part 1) |
+| Rationale and contributors | Clinical scorers |
+| Trajectory | The same real model over rolling windows |
+| Anything measured | User lab values override every estimate |
+
+Each `RiskScore` carries a `basis` field (`calibrated_classifier` or
+`clinical_formula`) alongside its `provenance`, so a caller can always tell not
+only how trustworthy the data was but which model answered.
+
+## 18. Trajectory without a temporal model
+
+The deck promised a long-term risk trajectory and early warning. That is now
+delivered **without any sequence model**, and that is a deliberate choice.
+
+The v1 design trained an LSTM to map 14 days of wearable data onto same-day
+biomarkers. No real dataset can supervise that, because nobody draws blood
+daily. That is exactly why the original data had to be synthetic, and why the
+model scored R2 -0.89 on held-out users. Retraining it as a delta model changes
+the output but not the supervision problem.
+
+**Datasets checked and rejected on Day 4:**
+
+| Dataset | Size | Verdict |
+|---|---|---|
+| PMData | 1.35 GB | 16 people, **no biomarkers** -- cannot supervise |
+| LifeSnaps | 586 MB | 71 people, **no biomarkers** -- cannot supervise |
+
+What works instead: the NHANES risk engine is a function of behaviour. Applying
+that real, cross-sectionally-validated model to successive 14-day windows of a
+user own history produces a genuine risk-over-time series, and the trend is a
+least-squares fit over those points.
+
+**The honest limitation:** this measures how risk responds to observed behaviour
+change, using a model fitted *across* people rather than *within* one. It is a
+trajectory of estimates, not a forecast of individual biology.
+
+The trajectory abstains rather than extrapolating: fewer than 14 days yields no
+trajectory at all, and fewer than 3 windows yields `slope_per_week: null` with
+direction `unknown`.
+
+## 19. Additional limitations (Day 4)
+
+12. **Trajectories are driven by wearable change only.** The profile (waist,
+    weight, diet) is held constant across the window walk, so a trajectory
+    understates improvement for a user who is also losing weight. Fixing this
+    needs historical profile snapshots, which the backend does not yet store.
+13. **Only two features are monotonically constrained.** Diet features remain
+    free and could in principle show the same inverted behaviour; they were not
+    constrained because the clinical direction of, for example, total fat is
+    genuinely ambiguous.
+14. **The synthetic LSTM is retired from the serving path** but still exists in
+    `src/inference/predictor.py` for comparison. Anything it touches is tagged
+    `Provenance.SIMULATION`.

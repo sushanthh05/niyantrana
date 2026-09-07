@@ -12,7 +12,7 @@
 |---|---|
 | `ml/` prediction path | ✅ Fixed, tested, ONNX-served |
 | `ml/` real data | ✅ 17,961 NHANES adults ingested |
-| `ml/` risk engine | ✅ Regression (Day 2) + calibrated classification (Day 3); composition pending (Day 4) |
+| `ml/` risk engine | ✅ Regression + classification + composition + trajectory (Days 2–4), monotonically constrained |
 | `rag_engine/` | ✅ Merged into `ml/src/recommendation/`, directory removed |
 | `backend2/` | ✅ Restructured into layers; all 3 silent mock fallbacks deleted |
 | `frontend/` | ⬜ Out of scope — being replaced wholesale |
@@ -158,18 +158,56 @@ but the UI must word a flag as *get tested*, never as a diagnosis.
 
 ---
 
-## Day 4 — Temporal model & composition
+## Day 4 — Composition & trajectory ✅ DONE
 
-**Goal:** make the wearable time series earn its place, honestly.
+> **Plan changed.** Two items were replaced after the evidence contradicted them.
+> Both changes are recorded here rather than silently absorbed.
 
-- [ ] Ingest PMData / LifeSnaps (direct download, no registration)
-- [ ] Feature bridge: 14-day wearable window → NHANES-comparable features (weekly MVPA, mean sleep, sedentary)
-- [ ] Retrain the LSTM as a **trend/delta** model, not an absolute predictor
-- [ ] Compose: `risk = RiskEngine(baseline features) adjusted by TemporalModel(trend)`
-- [ ] Risk **trajectory**: run the engine over rolling windows → fit trend → forecast
-- [ ] Label every simulation-trained output explicitly in the API response
+- [x] Feature bridge: 14-day window → NHANES-comparable features (already built in the restructure)
+- [x] Compose: calibrated classifier supplies the score, regression engine the biomarkers, scorers the explanation
+- [x] Risk **trajectory**: rolling windows → real risk over time → least-squares trend
+- [x] Every output tagged with `provenance` **and** a new `basis` field
+- [x] API exposes `trajectories`, `basis`, optional `watch_data`, and `history`
+- [x] 19 new tests (67 total)
 
-**Done when:** `/predict` returns a real risk score plus a trajectory, each tagged with its provenance.
+### Plan change 1 — wearable datasets rejected
+
+| Dataset | Size | Verdict |
+|---|---|---|
+| PMData | 1.35 GB | 16 people, **no biomarkers** |
+| LifeSnaps | 586 MB | 71 people, **no biomarkers** |
+
+Neither can supervise a temporal biomarker model. Downloading ~2 GB to validate
+feature distributions was not worth it. **Cost:** the instrument-mismatch
+limitation (NHANES self-reported sleep/activity vs sensor-measured) stays
+unquantified. A cheaper future option is NHANES `PAXDAY` accelerometry, which is
+paired *within-person* with the self-reports.
+
+### Plan change 2 — the LSTM is retired, not retrained
+
+The plan said "retrain the LSTM as a trend/delta model". Retraining changes the
+output but not the supervision problem: **no open dataset pairs longitudinal
+wearable data with repeated blood draws.** Instead, the trajectory applies the
+real NHANES model over rolling windows of the user own history. That is honest,
+simpler, and needs no synthetic data. The LSTM remains in
+`src/inference/predictor.py` for comparison, tagged `Provenance.SIMULATION`.
+
+### Unplanned finding — the model told users exercise raised their risk
+
+Walking a trajectory over 12 weeks of *improving* behaviour, a mid-range profile
+showed hypertension risk **rising +0.79 points/week**. Gradient boosting fits
+non-monotonic relationships freely, and it did. Aggregate metrics were all
+healthy — AUROC 0.80, calibration within 0.05, sanity check passing. Only the
+trajectory exposed it.
+
+**Fixed with monotonic constraints** on `mvpa_min_week` (decreasing) and
+`sedentary_min_day` (increasing). Sleep left unconstrained because it is
+U-shaped clinically. Cost: at most −0.005 AUROC; two heads actually improved.
+After the fix, **zero conditions rise with improving behaviour** across five
+profiles, enforced by `test_improving_behaviour_never_raises_any_risk`.
+
+**Verified end-to-end:** `POST /predict` returns four calibrated risks, estimated
+biomarkers, and four trajectories; a 3-day window returns 400 with a clear message.
 
 ---
 

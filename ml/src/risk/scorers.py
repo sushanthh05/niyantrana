@@ -8,10 +8,16 @@ Adding diabetes and hypertension that way would have meant a growing `if`
 cascade in the same handler -- textbook **Divergent Change**.
 
 Each condition is now a strategy object. `RiskScorer.score()` is the template
-method: it fixes the invariant skeleton (compute -> clamp -> band -> package
-with provenance) so no scorer can forget to declare where its number came from,
-while `_compute` and `_rationale` vary per condition. Registering a fourth
-condition requires no change to any existing class (Open/Closed).
+method: it fixes the invariant skeleton (obtain a value -> clamp -> band ->
+package with provenance AND basis) so no scorer can emit a number without
+declaring both where the data came from and which model produced it.
+
+**Score source precedence.** Where a calibrated classifier covers the condition,
+its probability is the score: it is a direct estimate of "does this person have
+this condition", trained and calibrated on 17,961 real adults. The clinical
+formula is the fallback for conditions no classifier covers, and it still
+supplies the rationale and contributor list in both cases -- the classifier
+answers *how likely*, the formula explains *why*.
 """
 from __future__ import annotations
 
@@ -19,8 +25,9 @@ from abc import ABC, abstractmethod
 
 from ..domain.models import (DIASTOLIC_HYPERTENSION, FLI_STEATOSIS_THRESHOLD,
                              HBA1C_DIABETES, HBA1C_PREDIABETES,
-                             SYSTOLIC_HYPERTENSION, Biomarkers, Provenance,
-                             RiskScore, UserProfile)
+                             SYSTOLIC_HYPERTENSION, AssessmentContext,
+                             Biomarkers, Provenance, RiskScore, ScoreBasis,
+                             UserProfile)
 
 
 class RiskScorer(ABC):
@@ -28,29 +35,37 @@ class RiskScorer(ABC):
 
     condition: str = "unknown"
 
-    def score(self, profile: UserProfile, biomarkers: Biomarkers,
+    def score(self, context: AssessmentContext,
               provenance: Provenance) -> RiskScore | None:
         """Template method. Subclasses override `_compute` and `_rationale`.
 
-        Returns None when the inputs this scorer needs are unavailable -- an
-        honest abstention, not a fabricated default.
+        Returns None when neither a classifier nor the required biomarkers are
+        available -- an honest abstention, not a fabricated default.
         """
-        raw = self._compute(profile, biomarkers)
+        probability = context.probability_for(self.condition)
+        if probability is not None:
+            raw, basis = probability * 100.0, ScoreBasis.CALIBRATED_CLASSIFIER
+        else:
+            raw, basis = self._compute(context.profile, context.biomarkers), \
+                ScoreBasis.CLINICAL_FORMULA
+
         if raw is None:
             return None
+
         value = max(0.0, min(100.0, float(raw)))
         return RiskScore(
             condition=self.condition,
             score=round(value, 1),
             band=RiskScore.band_for(value),
             provenance=provenance,
-            rationale=self._rationale(profile, biomarkers, value),
-            contributors=self._contributors(profile, biomarkers),
+            basis=basis,
+            rationale=self._rationale(context.profile, context.biomarkers, value),
+            contributors=self._contributors(context.profile, context.biomarkers),
         )
 
     @abstractmethod
     def _compute(self, profile: UserProfile, biomarkers: Biomarkers) -> float | None:
-        """Return a 0-100 risk value, or None if inputs are insufficient."""
+        """Fallback 0-100 risk value, or None if inputs are insufficient."""
 
     @abstractmethod
     def _rationale(self, profile: UserProfile, biomarkers: Biomarkers, value: float) -> str:
@@ -71,17 +86,18 @@ class FattyLiverScorer(RiskScorer):
 
     def _rationale(self, profile, biomarkers, value):
         if value >= FLI_STEATOSIS_THRESHOLD:
-            return (f"Fatty Liver Index {value:.0f} is at or above the {FLI_STEATOSIS_THRESHOLD:.0f} "
-                    "threshold associated with hepatic steatosis. Discuss a liver ultrasound "
-                    "with a clinician.")
+            return ("Body measurements indicate elevated likelihood of fatty liver. "
+                    "This estimate is driven mainly by waist circumference and BMI; "
+                    "it is a prompt to discuss a liver ultrasound, not a diagnosis.")
         if value >= 30:
-            return f"Fatty Liver Index {value:.0f} is intermediate. Waist reduction has the largest effect."
-        return f"Fatty Liver Index {value:.0f} suggests low likelihood of steatosis."
+            return ("Intermediate likelihood of fatty liver. Waist reduction has the "
+                    "largest single effect on this score.")
+        return "Low likelihood of hepatic steatosis on current measurements."
 
     def _contributors(self, profile, biomarkers):
         factors = []
-        # Sex-specific waist thresholds; South Asian cut-offs are lower than
-        # the European ones most calculators assume.
+        # Sex-specific waist thresholds. South Asian cut-offs are lower than the
+        # European ones most calculators assume.
         waist_limit = 90.0 if profile.sex.numeric == 1.0 else 80.0
         if profile.waist_cm > waist_limit:
             factors.append("waist circumference")
@@ -97,7 +113,7 @@ class FattyLiverScorer(RiskScorer):
 
 
 class DysglycaemiaScorer(RiskScorer):
-    """Prediabetes / diabetes risk from HbA1c (ADA thresholds)."""
+    """Prediabetes risk. HbA1c >= 5.7 (ADA), or a diagnosis on record."""
 
     condition = "dysglycaemia"
 
@@ -106,7 +122,7 @@ class DysglycaemiaScorer(RiskScorer):
             return None
         hba1c = biomarkers.hba1c
         # Piecewise-linear map onto 0-100 anchored at the clinical cut-offs, so
-        # the score band changes exactly where the diagnosis does.
+        # the band changes exactly where the diagnosis does.
         if hba1c < HBA1C_PREDIABETES:
             return 100.0 * (hba1c - 4.0) / (HBA1C_PREDIABETES - 4.0) * 0.30
         if hba1c < HBA1C_DIABETES:
@@ -116,9 +132,12 @@ class DysglycaemiaScorer(RiskScorer):
 
     def _rationale(self, profile, biomarkers, value):
         hba1c = biomarkers.hba1c
+        if hba1c is None:
+            return ("Estimated risk of raised blood sugar. Confirm with a clinical "
+                    "HbA1c test before drawing conclusions.")
         if hba1c >= HBA1C_DIABETES:
             return (f"Estimated HbA1c {hba1c:.1f}% is at or above the {HBA1C_DIABETES}% "
-                    "diabetes threshold. Confirm with a clinical HbA1c test.")
+                    "diabetes threshold. Confirm with a clinical test.")
         if hba1c >= HBA1C_PREDIABETES:
             return (f"Estimated HbA1c {hba1c:.1f}% falls in the prediabetes range "
                     f"({HBA1C_PREDIABETES}-{HBA1C_DIABETES}%). This stage is often reversible.")
@@ -129,6 +148,8 @@ class DysglycaemiaScorer(RiskScorer):
         if profile.bmi >= 23:  # South Asian overweight cut-off
             factors.append("BMI")
         if profile.sugar_g > 50:
+            # SHAP ranks free sugar third for the diabetes head -- the strongest
+            # showing of any dietary variable.
             factors.append("free sugar intake")
         if profile.fibre_g < 25:
             factors.append("low fibre intake")
@@ -137,8 +158,34 @@ class DysglycaemiaScorer(RiskScorer):
         return tuple(factors)
 
 
+class DiabetesScorer(DysglycaemiaScorer):
+    """Diabetes risk. HbA1c >= 6.5 (ADA), or a diagnosis on record.
+
+    Shares the dysglycaemia feature reasoning; only the threshold and wording
+    differ, so it extends rather than duplicates (**Pull Up Method**).
+    """
+
+    condition = "diabetes"
+
+    def _compute(self, profile, biomarkers):
+        if biomarkers.hba1c is None:
+            return None
+        hba1c = biomarkers.hba1c
+        if hba1c < HBA1C_DIABETES:
+            return 60.0 * max(0.0, hba1c - 4.0) / (HBA1C_DIABETES - 4.0)
+        return min(100.0, 60.0 + 40.0 * (hba1c - HBA1C_DIABETES) / 4.0)
+
+    def _rationale(self, profile, biomarkers, value):
+        hba1c = biomarkers.hba1c
+        if hba1c is not None and hba1c >= HBA1C_DIABETES:
+            return (f"Estimated HbA1c {hba1c:.1f}% is at or above the diabetes threshold. "
+                    "A confirmatory clinical test is the necessary next step.")
+        return ("Estimated risk of type-2 diabetes. At this screening sensitivity most "
+                "flagged people will not have it, so treat this as a prompt to test.")
+
+
 class HypertensionScorer(RiskScorer):
-    """Hypertension risk from blood pressure (ACC/AHA 2017: >= 130/80)."""
+    """Hypertension risk. BP >= 130/80 (ACC/AHA 2017), or on BP medication."""
 
     condition = "hypertension"
 
@@ -146,7 +193,7 @@ class HypertensionScorer(RiskScorer):
         systolic, diastolic = biomarkers.systolic_bp, biomarkers.diastolic_bp
         if systolic is None and diastolic is None:
             return None
-        # Score each reading against its own threshold, then take the worse --
+        # Score each reading against its own threshold and take the worse --
         # either alone is sufficient for a diagnosis.
         parts = []
         if systolic is not None:
@@ -156,11 +203,13 @@ class HypertensionScorer(RiskScorer):
         return max(parts)
 
     def _rationale(self, profile, biomarkers, value):
-        systolic = biomarkers.systolic_bp or 0
-        diastolic = biomarkers.diastolic_bp or 0
-        if systolic >= SYSTOLIC_HYPERTENSION or diastolic >= DIASTOLIC_HYPERTENSION:
-            return (f"Estimated blood pressure {systolic:.0f}/{diastolic:.0f} mmHg is at or above "
-                    f"{SYSTOLIC_HYPERTENSION:.0f}/{DIASTOLIC_HYPERTENSION:.0f}. "
+        systolic, diastolic = biomarkers.systolic_bp, biomarkers.diastolic_bp
+        if systolic is None and diastolic is None:
+            return ("Estimated hypertension risk. Confirm with repeated cuff "
+                    "measurements taken on separate days.")
+        if (systolic or 0) >= SYSTOLIC_HYPERTENSION or (diastolic or 0) >= DIASTOLIC_HYPERTENSION:
+            return (f"Estimated blood pressure {systolic:.0f}/{diastolic:.0f} mmHg is at or "
+                    f"above {SYSTOLIC_HYPERTENSION:.0f}/{DIASTOLIC_HYPERTENSION:.0f}. "
                     "Confirm with repeated cuff measurements.")
         return f"Estimated blood pressure {systolic:.0f}/{diastolic:.0f} mmHg is within range."
 
@@ -172,6 +221,8 @@ class HypertensionScorer(RiskScorer):
             factors.append("alcohol intake")
         if profile.smoking_status == 2:
             factors.append("current smoking")
+        if profile.satfat_g > 22:
+            factors.append("saturated fat intake")
         return tuple(factors)
 
 
@@ -179,5 +230,6 @@ class HypertensionScorer(RiskScorer):
 DEFAULT_SCORERS: tuple[RiskScorer, ...] = (
     FattyLiverScorer(),
     DysglycaemiaScorer(),
+    DiabetesScorer(),
     HypertensionScorer(),
 )
