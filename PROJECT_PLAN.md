@@ -12,7 +12,7 @@
 |---|---|
 | `ml/` prediction path | ✅ Fixed, tested, ONNX-served |
 | `ml/` real data | ✅ 17,961 NHANES adults ingested |
-| `ml/` risk engine | 🟡 Regression heads done (Day 2); classification + calibration pending (Day 3) |
+| `ml/` risk engine | ✅ Regression (Day 2) + calibrated classification (Day 3); composition pending (Day 4) |
 | `rag_engine/` | ✅ Merged into `ml/src/recommendation/`, directory removed |
 | `backend2/` | ✅ Restructured into layers; all 3 silent mock fallbacks deleted |
 | `frontend/` | ⬜ Out of scope — being replaced wholesale |
@@ -119,17 +119,42 @@ across every target — more than BMI in all six. Onboarding must insist on it.
 
 ---
 
-## Day 3 — Risk Engine v2 (classification, calibration, interpretability)
+## Day 3 — Risk Engine v2 (classification, calibration, interpretability) ✅ DONE
 
-**Goal:** turn regression into the three clinical risk outputs the pitch promises.
+- [x] **Four** classification heads: fatty_liver, dysglycaemia, diabetes, hypertension
+- [x] AUROC / AUPRC / sensitivity / specificity / PPV at a 90%-sensitivity operating point
+- [x] Isotonic calibration on a held-out split + per-decile reliability curves
+- [x] SHAP (exact TreeExplainer) per head → `reports/shap/`
+- [x] Sanity check: high-risk profile out-ranks low-risk on all four
+- [x] `src/inference/risk_classifier.py` serving loader; 13 new tests (48 total)
 
-- [ ] Classification heads: fatty liver (FLI ≥ 60), prediabetes/diabetes (HbA1c ≥ 5.7 / ≥ 6.5), hypertension (≥130/80)
-- [ ] Report AUROC, sensitivity, PPV — **prioritise sensitivity**, per deck slide 8
-- [ ] Probability calibration (isotonic / Platt) + calibration curve
-- [ ] SHAP feature importances per head → `reports/shap/`
-- [ ] Sanity check: does the model rank a known high-risk profile above a low-risk one?
+**Result:**
 
-**Done when:** three calibrated risk probabilities with AUROC + sensitivity recorded.
+| Condition | Prevalence | AUROC | Sens | Spec | PPV |
+|---|---|---|---|---|---|
+| hypertension | 49.8% | 0.802 | 91% | 0.53 | 0.66 |
+| dysglycaemia | 41.2% | 0.799 | 93% | 0.43 | 0.54 |
+| diabetes | 16.9% | 0.799 | 90% | 0.55 | 0.29 |
+| fatty_liver | 42.7% | 0.958 | 92% | 0.83 | 0.80 |
+
+**All three pitched conditions now exist.** v1 shipped fatty liver only.
+
+**Three findings:**
+
+1. **fatty_liver AUROC 0.958 is close to a tautology** — bmi+waist alone scores
+   0.9548, so the other 14 features add **+0.003**. Same story as the Day 2
+   regression head. A test keeps that baseline recorded so it is never quoted bare.
+2. **Labels must count treated patients as cases.** 26.7% of adults take BP
+   medication and read normal; a naive `BP≥130/80` label would have taught the
+   model that a quarter of the positive class is healthy. Medication is used in
+   the label only, never as a feature.
+3. **Calibration is overconfident at the top** — dysglycaemia predicts 0.88 where
+   0.64 are observed (thin bins, n=22). High probabilities mean "high risk", not
+   near-certainty.
+
+**Product note:** at the screening threshold, diabetes PPV is 0.29 — 7 of 10
+flagged people do not have it. Correct for 90% sensitivity at 16.9% prevalence,
+but the UI must word a flag as *get tested*, never as a diagnosis.
 
 ---
 

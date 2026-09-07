@@ -1,0 +1,504 @@
+{
+  "dataset": {
+    "source": "NHANES 2013-2018 (CDC, public domain)",
+    "rows": 17961
+  },
+  "calibration": "isotonic, fitted on a held-out 20% split",
+  "threshold_policy": "operating point targets 90% sensitivity because this is a screening tool",
+  "conditions": {
+    "fatty_liver": {
+      "definition": "FLI >= 60",
+      "clinical_note": "Bedogni 2006 Fatty Liver Index; >= 60 rules steatosis in.",
+      "n_train": 4293,
+      "n_test": 1431,
+      "prevalence": 0.4268,
+      "auroc": 0.9577,
+      "auprc": 0.9359,
+      "brier_uncalibrated": 0.083,
+      "brier_calibrated": 0.0817,
+      "operating_points": {
+        "high_sensitivity": {
+          "threshold": 0.4153,
+          "sensitivity": 0.9214,
+          "specificity": 0.8317,
+          "ppv": 0.8031,
+          "npv": 0.9342,
+          "tp": 563,
+          "fp": 138,
+          "fn": 48,
+          "tn": 682
+        },
+        "youden": {
+          "threshold": 0.415,
+          "sensitivity": 0.9214,
+          "specificity": 0.8317,
+          "ppv": 0.8031,
+          "npv": 0.9342,
+          "tp": 563,
+          "fp": 138,
+          "fn": 48,
+          "tn": 682
+        },
+        "default_0.5": {
+          "threshold": 0.5,
+          "sensitivity": 0.802,
+          "specificity": 0.9415,
+          "ppv": 0.9108,
+          "npv": 0.8645,
+          "tp": 490,
+          "fp": 48,
+          "fn": 121,
+          "tn": 772
+        }
+      },
+      "reliability_curve": [
+        {
+          "bin": "0.0-0.1",
+          "n": 578,
+          "mean_predicted": 0.0274,
+          "observed_frequency": 0.0242
+        },
+        {
+          "bin": "0.1-0.2",
+          "n": 112,
+          "mean_predicted": 0.1413,
+          "observed_frequency": 0.2232
+        },
+        {
+          "bin": "0.2-0.3",
+          "n": 32,
+          "mean_predicted": 0.2571,
+          "observed_frequency": 0.1875
+        },
+        {
+          "bin": "0.4-0.5",
+          "n": 164,
+          "mean_predicted": 0.4153,
+          "observed_frequency": 0.4512
+        },
+        {
+          "bin": "0.5-0.6",
+          "n": 89,
+          "mean_predicted": 0.5688,
+          "observed_frequency": 0.6742
+        },
+        {
+          "bin": "0.8-0.9",
+          "n": 85,
+          "mean_predicted": 0.8748,
+          "observed_frequency": 0.8235
+        },
+        {
+          "bin": "0.9-1.0",
+          "n": 360,
+          "mean_predicted": 0.9907,
+          "observed_frequency": 0.9889
+        }
+      ],
+      "selected_threshold": 0.4153,
+      "baseline_bmi_waist_only": {
+        "auroc": 0.9548,
+        "auroc_gain_from_other_features": 0.0029
+      }
+    },
+    "dysglycaemia": {
+      "definition": "HbA1c >= 5.7 or diagnosed diabetes",
+      "clinical_note": "ADA prediabetes threshold. Diagnosed diabetics count as cases even when treatment has brought HbA1c back under 5.7.",
+      "n_train": 9834,
+      "n_test": 3279,
+      "prevalence": 0.4123,
+      "auroc": 0.7991,
+      "auprc": 0.6888,
+      "brier_uncalibrated": 0.1786,
+      "brier_calibrated": 0.1803,
+      "operating_points": {
+        "high_sensitivity": {
+          "threshold": 0.2,
+          "sensitivity": 0.9342,
+          "specificity": 0.4338,
+          "ppv": 0.5365,
+          "npv": 0.9038,
+          "tp": 1263,
+          "fp": 1091,
+          "fn": 89,
+          "tn": 836
+        },
+        "youden": {
+          "threshold": 0.424,
+          "sensitivity": 0.7663,
+          "specificity": 0.699,
+          "ppv": 0.6411,
+          "npv": 0.81,
+          "tp": 1036,
+          "fp": 580,
+          "fn": 316,
+          "tn": 1347
+        },
+        "default_0.5": {
+          "threshold": 0.5,
+          "sensitivity": 0.6716,
+          "specificity": 0.767,
+          "ppv": 0.6691,
+          "npv": 0.769,
+          "tp": 908,
+          "fp": 449,
+          "fn": 444,
+          "tn": 1478
+        }
+      },
+      "reliability_curve": [
+        {
+          "bin": "0.0-0.1",
+          "n": 611,
+          "mean_predicted": 0.0562,
+          "observed_frequency": 0.0655
+        },
+        {
+          "bin": "0.1-0.2",
+          "n": 314,
+          "mean_predicted": 0.1618,
+          "observed_frequency": 0.1561
+        },
+        {
+          "bin": "0.2-0.3",
+          "n": 277,
+          "mean_predicted": 0.2613,
+          "observed_frequency": 0.2419
+        },
+        {
+          "bin": "0.3-0.4",
+          "n": 461,
+          "mean_predicted": 0.3909,
+          "observed_frequency": 0.3471
+        },
+        {
+          "bin": "0.4-0.5",
+          "n": 259,
+          "mean_predicted": 0.4505,
+          "observed_frequency": 0.4942
+        },
+        {
+          "bin": "0.5-0.6",
+          "n": 440,
+          "mean_predicted": 0.5346,
+          "observed_frequency": 0.5614
+        },
+        {
+          "bin": "0.6-0.7",
+          "n": 306,
+          "mean_predicted": 0.685,
+          "observed_frequency": 0.6373
+        },
+        {
+          "bin": "0.7-0.8",
+          "n": 540,
+          "mean_predicted": 0.754,
+          "observed_frequency": 0.7667
+        },
+        {
+          "bin": "0.8-0.9",
+          "n": 22,
+          "mean_predicted": 0.8834,
+          "observed_frequency": 0.6364
+        },
+        {
+          "bin": "0.9-1.0",
+          "n": 49,
+          "mean_predicted": 0.9907,
+          "observed_frequency": 0.7755
+        }
+      ],
+      "selected_threshold": 0.2
+    },
+    "diabetes": {
+      "definition": "HbA1c >= 6.5 or diagnosed diabetes",
+      "clinical_note": "ADA diabetes threshold. The lower-prevalence, higher-stakes head.",
+      "n_train": 9834,
+      "n_test": 3279,
+      "prevalence": 0.169,
+      "auroc": 0.799,
+      "auprc": 0.3825,
+      "brier_uncalibrated": 0.1199,
+      "brier_calibrated": 0.1183,
+      "operating_points": {
+        "high_sensitivity": {
+          "threshold": 0.1207,
+          "sensitivity": 0.9025,
+          "specificity": 0.5494,
+          "ppv": 0.2894,
+          "npv": 0.9652,
+          "tp": 500,
+          "fp": 1228,
+          "fn": 54,
+          "tn": 1497
+        },
+        "youden": {
+          "threshold": 0.132,
+          "sensitivity": 0.8682,
+          "specificity": 0.5985,
+          "ppv": 0.3054,
+          "npv": 0.9572,
+          "tp": 481,
+          "fp": 1094,
+          "fn": 73,
+          "tn": 1631
+        },
+        "default_0.5": {
+          "threshold": 0.5,
+          "sensitivity": 0.0884,
+          "specificity": 0.985,
+          "ppv": 0.5444,
+          "npv": 0.8416,
+          "tp": 49,
+          "fp": 41,
+          "fn": 505,
+          "tn": 2684
+        }
+      },
+      "reliability_curve": [
+        {
+          "bin": "0.0-0.1",
+          "n": 1460,
+          "mean_predicted": 0.0418,
+          "observed_frequency": 0.0288
+        },
+        {
+          "bin": "0.1-0.2",
+          "n": 572,
+          "mean_predicted": 0.1452,
+          "observed_frequency": 0.1556
+        },
+        {
+          "bin": "0.2-0.3",
+          "n": 668,
+          "mean_predicted": 0.2467,
+          "observed_frequency": 0.2695
+        },
+        {
+          "bin": "0.3-0.4",
+          "n": 214,
+          "mean_predicted": 0.3734,
+          "observed_frequency": 0.3832
+        },
+        {
+          "bin": "0.4-0.5",
+          "n": 275,
+          "mean_predicted": 0.4146,
+          "observed_frequency": 0.4073
+        },
+        {
+          "bin": "0.5-0.6",
+          "n": 88,
+          "mean_predicted": 0.5345,
+          "observed_frequency": 0.5568
+        }
+      ],
+      "selected_threshold": 0.1207
+    },
+    "hypertension": {
+      "definition": "BP >= 130/80 or on BP medication",
+      "clinical_note": "ACC/AHA 2017. 26.7% of adults take BP medication and therefore read normal; excluding them would invert the label.",
+      "n_train": 9921,
+      "n_test": 3308,
+      "prevalence": 0.4983,
+      "auroc": 0.8024,
+      "auprc": 0.7455,
+      "brier_uncalibrated": 0.1793,
+      "brier_calibrated": 0.1788,
+      "operating_points": {
+        "high_sensitivity": {
+          "threshold": 0.2601,
+          "sensitivity": 0.9066,
+          "specificity": 0.5325,
+          "ppv": 0.6581,
+          "npv": 0.8516,
+          "tp": 1494,
+          "fp": 776,
+          "fn": 154,
+          "tn": 884
+        },
+        "youden": {
+          "threshold": 0.518,
+          "sensitivity": 0.8167,
+          "specificity": 0.6602,
+          "ppv": 0.7047,
+          "npv": 0.784,
+          "tp": 1346,
+          "fp": 564,
+          "fn": 302,
+          "tn": 1096
+        },
+        "default_0.5": {
+          "threshold": 0.5,
+          "sensitivity": 0.8167,
+          "specificity": 0.659,
+          "ppv": 0.704,
+          "npv": 0.7837,
+          "tp": 1346,
+          "fp": 566,
+          "fn": 302,
+          "tn": 1094
+        }
+      },
+      "reliability_curve": [
+        {
+          "bin": "0.0-0.1",
+          "n": 411,
+          "mean_predicted": 0.0626,
+          "observed_frequency": 0.056
+        },
+        {
+          "bin": "0.1-0.2",
+          "n": 481,
+          "mean_predicted": 0.177,
+          "observed_frequency": 0.1746
+        },
+        {
+          "bin": "0.2-0.3",
+          "n": 275,
+          "mean_predicted": 0.2452,
+          "observed_frequency": 0.3273
+        },
+        {
+          "bin": "0.3-0.4",
+          "n": 85,
+          "mean_predicted": 0.3842,
+          "observed_frequency": 0.4353
+        },
+        {
+          "bin": "0.4-0.5",
+          "n": 144,
+          "mean_predicted": 0.4591,
+          "observed_frequency": 0.4722
+        },
+        {
+          "bin": "0.5-0.6",
+          "n": 487,
+          "mean_predicted": 0.5382,
+          "observed_frequency": 0.5421
+        },
+        {
+          "bin": "0.6-0.7",
+          "n": 385,
+          "mean_predicted": 0.6839,
+          "observed_frequency": 0.7195
+        },
+        {
+          "bin": "0.7-0.8",
+          "n": 446,
+          "mean_predicted": 0.7729,
+          "observed_frequency": 0.7444
+        },
+        {
+          "bin": "0.8-0.9",
+          "n": 558,
+          "mean_predicted": 0.8408,
+          "observed_frequency": 0.7939
+        },
+        {
+          "bin": "0.9-1.0",
+          "n": 36,
+          "mean_predicted": 0.9192,
+          "observed_frequency": 0.8333
+        }
+      ],
+      "selected_threshold": 0.2601
+    }
+  },
+  "shap_importance": {
+    "fatty_liver": {
+      "waist_cm": 3.20308,
+      "bmi": 1.86321,
+      "fat_g": 0.2497,
+      "age": 0.24759,
+      "mvpa_min_week": 0.21596,
+      "energy_kcal": 0.2121,
+      "sex_male": 0.17487,
+      "carb_g": 0.14444,
+      "satfat_g": 0.14316,
+      "sugar_g": 0.12586,
+      "fibre_g": 0.11415,
+      "protein_g": 0.10086,
+      "sedentary_min_day": 0.09756,
+      "sleep_hours": 0.07912,
+      "smoking_status": 0.06927,
+      "alcohol_drinks_week": 0.04529
+    },
+    "dysglycaemia": {
+      "age": 1.06928,
+      "bmi": 0.30269,
+      "waist_cm": 0.27238,
+      "energy_kcal": 0.18067,
+      "carb_g": 0.12769,
+      "sleep_hours": 0.11369,
+      "mvpa_min_week": 0.10826,
+      "sedentary_min_day": 0.09516,
+      "sex_male": 0.08186,
+      "sugar_g": 0.0791,
+      "fibre_g": 0.0764,
+      "fat_g": 0.07458,
+      "protein_g": 0.07136,
+      "alcohol_drinks_week": 0.06502,
+      "satfat_g": 0.05572,
+      "smoking_status": 0.03779
+    },
+    "diabetes": {
+      "age": 1.1415,
+      "waist_cm": 0.55056,
+      "sugar_g": 0.32938,
+      "bmi": 0.19634,
+      "mvpa_min_week": 0.17911,
+      "carb_g": 0.15324,
+      "fibre_g": 0.11836,
+      "alcohol_drinks_week": 0.11573,
+      "sex_male": 0.11467,
+      "energy_kcal": 0.11302,
+      "sleep_hours": 0.10474,
+      "fat_g": 0.10075,
+      "protein_g": 0.09365,
+      "sedentary_min_day": 0.07537,
+      "satfat_g": 0.06955,
+      "smoking_status": 0.01749
+    },
+    "hypertension": {
+      "age": 1.25515,
+      "waist_cm": 0.25604,
+      "bmi": 0.2144,
+      "sex_male": 0.18156,
+      "energy_kcal": 0.1455,
+      "fibre_g": 0.13606,
+      "sugar_g": 0.09977,
+      "carb_g": 0.0792,
+      "sleep_hours": 0.07874,
+      "fat_g": 0.07425,
+      "mvpa_min_week": 0.07156,
+      "protein_g": 0.06496,
+      "satfat_g": 0.06273,
+      "sedentary_min_day": 0.04955,
+      "alcohol_drinks_week": 0.03062,
+      "smoking_status": 0.01414
+    }
+  },
+  "sanity_check": {
+    "fatty_liver": {
+      "low_risk_profile": 0.0,
+      "high_risk_profile": 1.0,
+      "ordered_correctly": true
+    },
+    "dysglycaemia": {
+      "low_risk_profile": 0.0777,
+      "high_risk_profile": 0.7609,
+      "ordered_correctly": true
+    },
+    "diabetes": {
+      "low_risk_profile": 0.0223,
+      "high_risk_profile": 0.4081,
+      "ordered_correctly": true
+    },
+    "hypertension": {
+      "low_risk_profile": 0.1723,
+      "high_risk_profile": 0.8549,
+      "ordered_correctly": true
+    }
+  }
+}

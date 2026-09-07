@@ -1,0 +1,18 @@
+{
+  "age": 1.1415,
+  "waist_cm": 0.55056,
+  "sugar_g": 0.32938,
+  "bmi": 0.19634,
+  "mvpa_min_week": 0.17911,
+  "carb_g": 0.15324,
+  "fibre_g": 0.11836,
+  "alcohol_drinks_week": 0.11573,
+  "sex_male": 0.11467,
+  "energy_kcal": 0.11302,
+  "sleep_hours": 0.10474,
+  "fat_g": 0.10075,
+  "protein_g": 0.09365,
+  "sedentary_min_day": 0.07537,
+  "satfat_g": 0.06955,
+  "smoking_status": 0.01749
+}
