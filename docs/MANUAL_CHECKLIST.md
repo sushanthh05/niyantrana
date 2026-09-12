@@ -19,9 +19,19 @@ Confirmed working in production: register → login (**cookie issued, so `TRUST_
 
 ---
 
-## Priority 0 — Two production bugs the smoke test found (~5 min)
+## Priority 0 — Two production bugs the smoke test found
 
-Both are fixed in code, but production is still running the old build.
+Both are already fixed in code. **One `git push` deploys both fixes** — Render
+auto-deploys on commit (`autoDeployTrigger: commit`), and the corrected
+`render.yaml` re-syncs `ML_SERVICE_URL` at the same time.
+
+```bash
+git add -A && git commit -m "Fix ML_SERVICE_URL and add Gemini model fallback"
+git push
+```
+
+The detail on each follows, in case you would rather patch the dashboard than
+wait for a build.
 
 ### ☐ `ML_SERVICE_URL` does not resolve
 
@@ -50,17 +60,20 @@ invented scores** — exactly what v1 got wrong three different ways.*
 `/api/chat` returns `404: this model models/gemini-2.5-flash is no longer
 available to new users` — months before its published October 2026 date.
 
-**Fix now** — set on **both** services:
+**Fix: deploy the current code.** There is no environment variable to set.
 
-```
-GEMINI_MODEL = gemini-3.5-flash
-```
+`GEMINI_MODEL` is not listed in the Render dashboard because the blueprint
+deliberately does not declare it — setting it *pins* one model and **disables**
+the fallback chain. Leaving it unset is the correct configuration.
 
-**Durable fix (already in code, needs a push):** both clients now try
-`gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-2.5-flash`, cache the
-first that answers, and do *not* walk the chain on a 401 or 429 since those are
-not model-specific. Google shipped three Flash generations in a year, so a
-single hardcoded name is a liability. Four tests cover it.
+Both clients now try `gemini-3.5-flash` → `gemini-3.5-flash-lite` →
+`gemini-2.5-flash`, cache the first that answers, and do *not* walk the chain on
+a 401 or 429 since those are not model-specific. Google shipped three Flash
+generations in a year and pulled one early, so a single hardcoded name is a
+liability. Four tests cover it.
+
+Add `GEMINI_MODEL` by hand in the dashboard only if you later want to force a
+specific model.
 
 ### ☐ Then re-verify
 

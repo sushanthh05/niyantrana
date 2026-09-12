@@ -39,6 +39,15 @@ services:
       # Optional. Without it /recommend returns 503 and /predict is unaffected.
       - key: GEMINI_API_KEY
         sync: false
+      # GEMINI_MODEL is deliberately NOT declared here.
+      #
+      # Leaving it unset keeps the fallback chain active: the client tries
+      # gemini-3.5-flash -> gemini-3.5-flash-lite -> gemini-2.5-flash and caches
+      # the first that answers. Setting it PINS one model and disables the
+      # chain, which is the wrong default given Google pulled gemini-2.5-flash
+      # from new users months before its published shutdown date.
+      #
+      # Add it by hand in the Render dashboard only to force a specific model.
 
   # --- Node API -------------------------------------------------------------
   - type: web
@@ -85,3 +94,12 @@ services:
       # Optional. Without it /api/chat returns 503 and everything else works.
       - key: GEMINI_API_KEY
         sync: false
+      # GEMINI_MODEL is deliberately NOT declared here.
+      #
+      # Leaving it unset keeps the fallback chain active: the client tries
+      # gemini-3.5-flash -> gemini-3.5-flash-lite -> gemini-2.5-flash and caches
+      # the first that answers. Setting it PINS one model and disables the
+      # chain, which is the wrong default given Google pulled gemini-2.5-flash
+      # from new users months before its published shutdown date.
+      #
+      # Add it by hand in the Render dashboard only to force a specific model.
