@@ -1,110 +1,95 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createChatModel, systemPrompt } from '../services/geminiClient.jsx';
+/**
+ * Chat state, backed by the server-side Gemini proxy.
+ *
+ * Replaces a browser-side client that read `VITE_GEMINI_API_KEY`. Vite inlines
+ * anything VITE_-prefixed into the bundle, so that key was readable by anyone
+ * who opened devtools, and spendable against the project's quota. The key now
+ * lives only on the server and the browser calls POST /api/chat.
+ *
+ * The old client also faked token-by-token streaming from seven canned strings
+ * whenever the API failed, so a user could not tell a real answer from a stub.
+ * A failure is now surfaced as a failure.
+ *
+ * NOTE: the frontend is being rebuilt. This module exists so the current tree
+ * has no path that ships a secret, not as the final design.
+ */
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
-const ChatContext = createContext();
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const STORAGE_KEY = 'niyantrana_chat_history_v2';
+
+const ChatContext = createContext(null);
 
 export const useChat = () => {
-  const ctx = useContext(ChatContext);
-  if (!ctx) throw new Error('useChat must be used within ChatProvider');
-  return ctx;
+  const context = useContext(ChatContext);
+  if (!context) throw new Error('useChat must be used inside a ChatProvider');
+  return context;
 };
 
-const STORAGE_KEY = 'niyantrana_chat_history_v1';
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
 
-export const ChatProvider = ({ children, modelName = 'gemini-1.5-flash' }) => {
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch (_) {
-      return [];
-    }
-  });
-  const [isStreaming, setIsStreaming] = useState(false);
+export const ChatProvider = ({ children }) => {
+  const [messages, setMessages] = useState(loadHistory);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState(null);
-  const model = useMemo(() => createChatModel(modelName), [modelName]);
-  const abortRef = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  }, [messages]);
+  const persist = useCallback((next) => {
+    setMessages(next);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next.slice(-40))); } catch { /* quota */ }
+  }, []);
 
-  const reset = () => {
-    setMessages([]);
+  const send = useCallback(async (text) => {
+    const trimmed = (text || '').trim();
+    if (!trimmed || isSending) return;
+
     setError(null);
-  };
+    setIsSending(true);
+    const withUser = [...messages, { role: 'user', text: trimmed }];
+    persist(withUser);
 
-  const sendMessage = async (userText, context = {}) => {
-    if (!userText?.trim()) return;
-    setError(null);
-
-    const newUserMsg = { role: 'user', content: userText, ts: Date.now() };
-    setMessages(prev => [...prev, newUserMsg]);
-
-    setIsStreaming(true);
-    const controller = new AbortController();
-    abortRef.current = controller;
     try {
-      const historyParts = messages.map(m => ({ role: m.role, content: m.content }));
-      const inputParts = [
-        { text: systemPrompt },
-        { text: JSON.stringify({ userContext: context }) },
-        ...historyParts.map(h => ({ text: `${h.role.toUpperCase()}: ${h.content}` })),
-        { text: `USER: ${userText}` },
-      ];
-
-      // Use generateContentStream for streaming
-      const stream = await model.generateContentStream({
-        contents: [{ role: 'user', parts: inputParts }],
-        signal: controller.signal,
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        credentials: 'include',        // session cookie, not a bearer token
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          history: withUser.slice(-12, -1),
+        }),
       });
 
-      let fullText = '';
-      // Handle both real Gemini API stream and FallbackStream
-      const streamIterator = typeof stream.stream === 'function' ? stream.stream() : stream.stream;
-      for await (const chunk of streamIterator) {
-        const c = chunk?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (c) {
-          fullText += c;
-          setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.role === 'assistant' && last.streaming) {
-              const copy = [...prev];
-              copy[copy.length - 1] = { ...last, content: fullText, ts: Date.now() };
-              return copy;
-            }
-            return [...prev, { role: 'assistant', content: c, streaming: true, ts: Date.now() }];
-          });
-        }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        // Surfaced, not papered over with a canned reply.
+        setError(body.message || 'The assistant is unavailable right now.');
+        return;
       }
-
-      setMessages(prev => prev.map(m => (m.streaming ? { ...m, streaming: false } : m)));
-    } catch (err) {
-      if (err?.name === 'AbortError' || err?.message === 'AbortError') return;
-      console.error(err);
-      setError('Chat service temporarily unavailable. Please try again.');
+      persist([...withUser, { role: 'model', text: body.reply }]);
+    } catch (requestError) {
+      setError(requestError.message || 'Could not reach the assistant.');
     } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
+      setIsSending(false);
     }
-  };
+  }, [messages, isSending, persist]);
 
-  const stop = () => {
-    abortRef.current?.abort();
-  };
+  const clear = useCallback(() => {
+    persist([]);
+    setError(null);
+  }, [persist]);
 
-  const value = {
-    messages,
-    isStreaming,
-    error,
-    sendMessage,
-    reset,
-    stop,
-  };
-
-  return (
-    <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
+  const value = useMemo(
+    () => ({ messages, isSending, error, send, clear }),
+    [messages, isSending, error, send, clear],
   );
+
+  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 };
 
-
+export default ChatContext;

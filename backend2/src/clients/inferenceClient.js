@@ -21,19 +21,54 @@ import { InferenceUnavailableError, ValidationError } from '../domain/errors.js'
 export class InferenceClient {
   constructor({ baseUrl = config.inferenceServiceUrl,
                 timeout = config.inferenceTimeoutMs,
+                coldStartTimeout = config.inferenceColdStartTimeoutMs,
                 http = axios } = {}) {
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.baseUrl = InferenceClient.normalizeBaseUrl(baseUrl);
     this.timeout = timeout;
+    this.coldStartTimeout = coldStartTimeout;
     this.http = http;
+  }
+
+  /**
+   * Accept a bare hostname as well as a full URL.
+   *
+   * Render blueprints wire services together with `fromService` +
+   * `property: host`, which yields `niyantrana-inference.onrender.com` with no
+   * scheme. Without this, every request would be built as
+   * `niyantrana-inference.onrender.com/predict` and fail to parse -- so the
+   * blueprint could not connect the two services without manual editing.
+   */
+  static normalizeBaseUrl(value) {
+    const trimmed = String(value || '').trim().replace(/\/+$/, '');
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    // A bare host is assumed to be TLS-terminated, except on localhost.
+    const scheme = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(trimmed)
+      ? 'http' : 'https';
+    return `${scheme}://${trimmed}`;
+  }
+
+  /**
+   * Whether a failure looks like the model service being asleep rather than
+   * broken. Only these are worth a second, longer attempt.
+   */
+  static #isColdStart(error) {
+    if (error.response) return false;          // it answered, so it is awake
+    return ['ECONNABORTED', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET',
+      'EAI_AGAIN'].includes(error.code);
+  }
+
+  async #send(path, payload, timeout) {
+    const response = await this.http.post(`${this.baseUrl}${path}`, payload, {
+      timeout,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return response.data;
   }
 
   async #post(path, payload) {
     try {
-      const response = await this.http.post(`${this.baseUrl}${path}`, payload, {
-        timeout: this.timeout,
-        headers: { 'Content-Type': 'application/json' },
-      });
-      return response.data;
+      return await this.#send(path, payload, this.timeout);
     } catch (error) {
       // A 4xx means we sent something invalid; surface it as a client error
       // rather than blaming the downstream service.
@@ -44,15 +79,39 @@ export class InferenceClient {
           error.response.data,
         );
       }
-      throw new InferenceUnavailableError(error.code || error.message);
+
+      // Retry ONCE, and only for a failure that looks like a sleeping service.
+      // A 5xx is not retried: the service answered, so repeating the call just
+      // doubles the latency before reporting the same fault.
+      if (!InferenceClient.#isColdStart(error) || this.coldStartTimeout <= this.timeout) {
+        throw new InferenceUnavailableError(error.code || error.message);
+      }
+
+      console.warn(`[inference] ${error.code || error.message}; retrying once with `
+        + `${this.coldStartTimeout}ms in case the service is waking from idle`);
+      try {
+        return await this.#send(path, payload, this.coldStartTimeout);
+      } catch (retryError) {
+        throw new InferenceUnavailableError(
+          `${retryError.code || retryError.message} (after a cold-start retry)`);
+      }
     }
   }
 
-  /** Returns a full risk assessment, or throws. Never a fabricated score. */
-  async assessRisk({ profile, wearableWindow, measured }) {
+  /**
+   * Returns a full risk assessment, or throws. Never a fabricated score.
+   *
+   * `history` is what makes trajectories possible. The inference service has
+   * accepted it since the trajectory feature was built, but this client did not
+   * send it -- so every response came back with an empty `trajectories` array
+   * and the risk-over-time feature was unreachable through the API. Caught by
+   * the demo-seeding test asserting that 90 days of history yields trends.
+   */
+  async assessRisk({ profile, wearableWindow, history, measured }) {
     const data = await this.#post('/predict', {
       user_data: profile,
       watch_data: wearableWindow,
+      history: history?.length ? history : undefined,
       measured: measured || null,
     });
 

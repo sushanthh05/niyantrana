@@ -34,6 +34,11 @@ const config = {
 
   inferenceServiceUrl: process.env.ML_SERVICE_URL || 'http://localhost:8000',
   inferenceTimeoutMs: Number(process.env.ML_TIMEOUT_MS) || 15000,
+  // A free-tier instance spins down after 15 minutes idle and takes roughly a
+  // minute to wake. The normal 15s timeout fires long before that, so the first
+  // request after an idle period would always fail. One retry with a much
+  // longer window turns a guaranteed failure into a slow success.
+  inferenceColdStartTimeoutMs: Number(process.env.ML_COLD_START_TIMEOUT_MS) || 75000,
 
   geminiApiKey: process.env.GEMINI_API_KEY,
 

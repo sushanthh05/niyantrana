@@ -38,6 +38,49 @@ export class UserRepository {
     );
   }
 
+  /**
+   * Replace the whole wearable history.
+   *
+   * Used by demo seeding and by a full re-import, both of which must be
+   * idempotent: clicking "load demo data" twice should not leave 180 days.
+   */
+  replaceWatchData(id, entries) {
+    return User.findByIdAndUpdate(
+      id,
+      { $set: { watchHistory: Array.isArray(entries) ? entries : [entries] } },
+      { new: true, runValidators: true },
+    );
+  }
+
+  /**
+   * Merge days by date: an existing day is updated, a new one appended.
+   *
+   * Re-importing an overlapping export should refresh those days rather than
+   * create duplicates, which would corrupt the 14-day window the model reads.
+   */
+  async upsertWatchData(id, entries) {
+    const incoming = Array.isArray(entries) ? entries : [entries];
+    const user = await User.findById(id).select('watchHistory');
+    if (!user) return null;
+
+    const dayOf = (value) => new Date(value).toISOString().slice(0, 10);
+    const merged = new Map(
+      (user.watchHistory || []).map((day) => [dayOf(day.date), day.toObject?.() ?? day]),
+    );
+    let added = 0;
+    let updated = 0;
+    for (const entry of incoming) {
+      const key = dayOf(entry.date);
+      if (merged.has(key)) updated += 1; else added += 1;
+      merged.set(key, { ...merged.get(key), ...entry });
+    }
+
+    const history = [...merged.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
+    await User.findByIdAndUpdate(id, { $set: { watchHistory: history } },
+      { runValidators: true });
+    return { added, updated, total: history.length };
+  }
+
   appendWatchData(id, entries) {
     const list = Array.isArray(entries) ? entries : [entries];
     return User.findByIdAndUpdate(

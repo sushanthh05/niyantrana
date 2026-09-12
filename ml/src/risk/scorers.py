@@ -30,6 +30,22 @@ from ..domain.models import (DIASTOLIC_HYPERTENSION, FLI_STEATOSIS_THRESHOLD,
                              UserProfile)
 
 
+def _above(value, threshold) -> bool:
+    """True only when the value is KNOWN and exceeds the threshold.
+
+    A dietary field is None when the user has logged no meals. An unlogged
+    value is not evidence, so it must never be cited as a contributor -- the
+    app cannot tell someone their sugar intake is high when it has no idea what
+    they ate.
+    """
+    return value is not None and value > threshold
+
+
+def _below(value, threshold) -> bool:
+    """True only when the value is KNOWN and falls below the threshold."""
+    return value is not None and value < threshold
+
+
 class RiskScorer(ABC):
     """Strategy interface for scoring one condition."""
 
@@ -103,11 +119,11 @@ class FattyLiverScorer(RiskScorer):
             factors.append("waist circumference")
         if profile.bmi >= 25:
             factors.append("BMI")
-        if biomarkers.triglycerides and biomarkers.triglycerides > 150:
+        if _above(biomarkers.triglycerides, 150):
             factors.append("triglycerides")
-        if profile.alcohol_drinks_week > 7:
+        if _above(profile.alcohol_drinks_week, 7):
             factors.append("alcohol intake")
-        if profile.sugar_g > 50:
+        if _above(profile.sugar_g, 50):
             factors.append("free sugar intake")
         return tuple(factors)
 
@@ -147,11 +163,11 @@ class DysglycaemiaScorer(RiskScorer):
         factors = []
         if profile.bmi >= 23:  # South Asian overweight cut-off
             factors.append("BMI")
-        if profile.sugar_g > 50:
+        if _above(profile.sugar_g, 50):
             # SHAP ranks free sugar third for the diabetes head -- the strongest
             # showing of any dietary variable.
             factors.append("free sugar intake")
-        if profile.fibre_g < 25:
+        if _below(profile.fibre_g, 25):
             factors.append("low fibre intake")
         if profile.has_hereditary_risk:
             factors.append("family history")
@@ -217,11 +233,11 @@ class HypertensionScorer(RiskScorer):
         factors = []
         if profile.bmi >= 25:
             factors.append("BMI")
-        if profile.alcohol_drinks_week > 7:
+        if _above(profile.alcohol_drinks_week, 7):
             factors.append("alcohol intake")
         if profile.smoking_status == 2:
             factors.append("current smoking")
-        if profile.satfat_g > 22:
+        if _above(profile.satfat_g, 22):
             factors.append("saturated fat intake")
         return tuple(factors)
 

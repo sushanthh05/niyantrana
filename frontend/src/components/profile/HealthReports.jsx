@@ -15,6 +15,7 @@ const HealthReports = () => {
     // Simulate API delay
     setTimeout(() => {
       if (user?.id) {
+        // Throws until the report is built from real user data. See profileService.
         const reportData = generateDoctorsReport(user.id);
         setReport(reportData);
       }

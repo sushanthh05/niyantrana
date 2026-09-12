@@ -21,7 +21,14 @@ const watchDataSchema = new mongoose.Schema({
   sleep_quality_score: { type: Number, min: 0, max: 100 },
   resting_heart_rate: { type: Number, min: 20, max: 220, alias: 'heart_rate' },
   heart_rate_variability: { type: Number, min: 0 },
-  source: { type: String, enum: ['fitbit', 'manual', 'import'], default: 'manual' },
+  // Naming the provider matters for trust: a reviewer looking at a populated
+  // demo account must be able to tell seeded data from a real device export.
+  source: {
+    type: String,
+    enum: ['fitbit', 'apple_health', 'oura', 'withings', 'google_takeout',
+      'import', 'manual', 'demo'],
+    default: 'manual',
+  },
 }, { _id: false });
 
 const riskScoreSchema = new mongoose.Schema({

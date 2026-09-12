@@ -88,6 +88,23 @@ class RiskClassifierEnsemble:
     def conditions(self) -> tuple[str, ...]:
         return tuple(self._models)
 
+    def _frame_for(self, profile: UserProfile,
+                   windows: list) -> pd.DataFrame:
+        """One feature row per window, in the order the models were fitted on."""
+        rows = [[FeatureBridge.risk_engine_row(profile, w).get(name)
+                 for name in self._features] for w in windows]
+        return pd.DataFrame(rows, columns=self._features).astype(float)
+
+    def _wrap(self, condition: str, probability) -> ConditionProbability:
+        if not np.isfinite(probability):
+            raise InferenceError(f"Non-finite probability for {condition}")
+        return ConditionProbability(
+            condition=condition,
+            probability=round(min(1.0, max(0.0, float(probability))), 4),
+            threshold=float(self._thresholds.get(condition, 0.5)),
+            definition=self._definitions.get(condition, ""),
+        )
+
     def predict(self, profile: UserProfile,
                 window: WearableWindow | None = None) -> dict[str, ConditionProbability]:
         """Calibrated probability per condition.
@@ -96,24 +113,28 @@ class RiskClassifierEnsemble:
         gradient-boosting estimators handle that natively rather than having
         values invented for them.
         """
-        row = FeatureBridge.risk_engine_row(profile, window)
-        frame = pd.DataFrame([[row.get(name) for name in self._features]],
-                             columns=self._features).astype(float)
+        return self.predict_batch(profile, [window])[0]
 
-        results = {}
+    def predict_batch(self, profile: UserProfile, windows: list) -> list:
+        """Score many windows in one pass per classifier.
+
+        The trajectory walks ~11 windows. Scoring them individually cost 44
+        `predict_proba` calls on 1-row frames, roughly 6.4 ms of scikit-learn
+        overhead each, and accounted for 98% of request latency. Batching makes
+        it one call per classifier regardless of how many windows there are.
+        """
+        if not windows:
+            return []
+
+        frame = self._frame_for(profile, windows)
+        columns = {}
         for condition, model in self._models.items():
             try:
-                probability = float(model.predict_proba(frame)[0][1])
+                columns[condition] = model.predict_proba(frame)[:, 1]
             except Exception as exc:
                 raise InferenceError(
                     f"Risk classifier failed for {condition}: {exc}") from exc
-            if not np.isfinite(probability):
-                raise InferenceError(f"Non-finite probability for {condition}")
 
-            results[condition] = ConditionProbability(
-                condition=condition,
-                probability=round(min(1.0, max(0.0, probability)), 4),
-                threshold=float(self._thresholds.get(condition, 0.5)),
-                definition=self._definitions.get(condition, ""),
-            )
-        return results
+        return [{condition: self._wrap(condition, probabilities[i])
+                 for condition, probabilities in columns.items()}
+                for i in range(len(windows))]

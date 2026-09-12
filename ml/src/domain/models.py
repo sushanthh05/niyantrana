@@ -86,6 +86,14 @@ PROFILE_RANGES = {
 }
 
 
+def _optional_float(value) -> float | None:
+    """Coerce to float, preserving None. NaN is treated as absent."""
+    if value is None:
+        return None
+    number = float(value)
+    return None if math.isnan(number) else number
+
+
 def _require_in_range(name: str, value: float) -> float:
     low, high = PROFILE_RANGES[name]
     if value is None or (isinstance(value, float) and math.isnan(value)):
@@ -115,13 +123,19 @@ class UserProfile:
     weight_kg: float | None = None
 
     # Daily dietary totals, aggregated from meal logs.
-    energy_kcal: float = 0.0
-    fat_g: float = 0.0
-    carb_g: float = 0.0
-    protein_g: float = 0.0
-    sugar_g: float = 0.0
-    fibre_g: float = 0.0
-    satfat_g: float = 0.0
+    #
+    # None means "not logged", which is NOT the same as 0.0 ("ate nothing").
+    # The gradient-boosting estimators handle a missing feature natively, so an
+    # honest absence produces a wider-but-correct estimate, whereas a zero would
+    # tell the model the user fasted. This project exists because v1 substituted
+    # plausible values for missing ones.
+    energy_kcal: float | None = None
+    fat_g: float | None = None
+    carb_g: float | None = None
+    protein_g: float | None = None
+    sugar_g: float | None = None
+    fibre_g: float | None = None
+    satfat_g: float | None = None
 
     # Lifestyle. Alcohol is a major GGT confounder that v1 ignored entirely
     # while using GGT as a headline output.
@@ -132,7 +146,9 @@ class UserProfile:
         _require_in_range("age", self.age)
         _require_in_range("bmi", self.bmi)
         _require_in_range("waist_cm", self.waist_cm)
-        _require_in_range("energy_kcal", self.energy_kcal)
+        # Diet is optional; when present it still has to be plausible.
+        if self.energy_kcal is not None:
+            _require_in_range("energy_kcal", self.energy_kcal)
 
     @property
     def basal_metabolic_rate(self) -> float:
@@ -152,9 +168,16 @@ class UserProfile:
         return self.basal_metabolic_rate * 1.375
 
     @property
-    def energy_balance(self) -> float:
-        """Daily surplus/deficit. Positive means eating above expenditure."""
+    def energy_balance(self) -> float | None:
+        """Daily surplus/deficit, or None when intake was never logged."""
+        if self.energy_kcal is None:
+            return None
         return self.energy_kcal - self.total_energy_expenditure
+
+    @property
+    def has_diet_log(self) -> bool:
+        """Whether any dietary intake is known for this profile."""
+        return self.energy_kcal is not None
 
     @classmethod
     def from_dict(cls, data: dict) -> "UserProfile":
@@ -189,13 +212,13 @@ class UserProfile:
             has_hereditary_risk=bool(pick("has_hereditary_risk", "hereditary_risk", default=False)),
             height_cm=(float(height_cm) if height_cm else None),
             weight_kg=(float(weight_kg) if weight_kg else None),
-            energy_kcal=float(pick("energy_kcal", "calorie_intake", default=0.0)),
-            fat_g=float(pick("fat_g", "fat_grams", default=0.0)),
-            carb_g=float(pick("carb_g", "carbs_grams", default=0.0)),
-            protein_g=float(pick("protein_g", "protein_grams", default=0.0)),
-            sugar_g=float(pick("sugar_g", default=0.0)),
-            fibre_g=float(pick("fibre_g", default=0.0)),
-            satfat_g=float(pick("satfat_g", default=0.0)),
+            energy_kcal=_optional_float(pick("energy_kcal", "calorie_intake", default=None)),
+            fat_g=_optional_float(pick("fat_g", "fat_grams", default=None)),
+            carb_g=_optional_float(pick("carb_g", "carbs_grams", default=None)),
+            protein_g=_optional_float(pick("protein_g", "protein_grams", default=None)),
+            sugar_g=_optional_float(pick("sugar_g", default=None)),
+            fibre_g=_optional_float(pick("fibre_g", default=None)),
+            satfat_g=_optional_float(pick("satfat_g", default=None)),
             alcohol_drinks_week=float(pick("alcohol_drinks_week", default=0.0)),
             smoking_status=int(pick("smoking_status", default=0)),
         )

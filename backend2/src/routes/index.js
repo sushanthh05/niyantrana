@@ -8,6 +8,8 @@
 import { Router } from 'express';
 
 import * as authController from '../controllers/authController.js';
+import * as logController from '../controllers/logController.js';
+import * as wearableController from '../controllers/wearableController.js';
 import * as riskController from '../controllers/riskController.js';
 import * as userController from '../controllers/userController.js';
 import authenticate from '../middleware/authenticate.js';
@@ -30,6 +32,30 @@ router.post('/api/user/wearable', authenticate, asyncHandler(userController.reco
 
 // Food search is authenticated; v1 left it open.
 router.get('/api/food/search', authenticate, asyncHandler(userController.searchFood));
+
+// --- Logging: meals, vitals, activity ---
+router.post('/api/logs/meals', authenticate, asyncHandler(logController.logMeal));
+router.get('/api/logs/meals', authenticate, asyncHandler(logController.listMeals));
+router.delete('/api/logs/meals/:id', authenticate, asyncHandler(logController.deleteMeal));
+router.get('/api/logs/macros/daily', authenticate, asyncHandler(logController.dailyMacros));
+router.get('/api/logs/macros/trend', authenticate, asyncHandler(logController.macroTrend));
+
+router.post('/api/logs/vitals', authenticate, asyncHandler(logController.logVitals));
+router.get('/api/logs/vitals', authenticate, asyncHandler(logController.listVitals));
+
+router.post('/api/logs/activity', authenticate, asyncHandler(logController.logActivity));
+
+// --- Wearable import and demo seeding ---
+// Import is the primary wearable path: every consumer API a solo developer
+// could register for has closed. See services/wearableImportService.js.
+router.get('/api/wearable/formats', wearableController.importFormats);
+router.post('/api/wearable/import', authenticate, asyncHandler(wearableController.importWearableData));
+router.post('/api/wearable/demo', authenticate, asyncHandler(wearableController.loadDemoData));
+
+// --- Conversational assistant ---
+// Server-side proxy: the Gemini key must never reach the browser, which is
+// exactly what v1 did by inlining VITE_GEMINI_API_KEY into the bundle.
+router.post('/api/chat', authenticate, asyncHandler(logController.chat));
 
 // --- Risk assessment ---
 router.post('/api/predict', authenticate, asyncHandler(riskController.assess));

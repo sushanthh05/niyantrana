@@ -1,14 +1,27 @@
-# Deployment-only dependencies. Deliberately EXCLUDES tensorflow: importing TF
-# costs ~358 MB RSS versus ~33 MB for onnxruntime, which is the difference
-# between fitting and OOM-ing on a free 512 MB instance. Training happens
-# offline; only the exported ONNX graph ships.
-numpy
-pandas
-scikit-learn
-joblib
-onnxruntime
-fastapi
-uvicorn[standard]
-openpyxl
-google-generativeai
-python-dotenv
+# Deployment dependencies only. Pinned so the runtime matches the environment
+# that pickled the model artifacts -- a scikit-learn minor-version mismatch
+# makes joblib deserialisation warn, and can silently change behaviour.
+#
+# Deliberately ABSENT:
+#   tensorflow  -- 358 MB RSS on import. Training only; the served models are
+#                  scikit-learn estimators.
+#   onnxruntime -- was needed for the multimodal LSTM, which Day 4 retired from
+#                  the serving path. Verified not imported by src.api.app.
+#   openpyxl    -- the food database ships as CSV (58x faster, 5.3x smaller).
+#   google-generativeai -- pulls googleapiclient (103 MB), google (25 MB),
+#                  grpc (18 MB) and cryptography (16 MB) to make one text
+#                  generation POST. GeminiClient calls the REST endpoint with
+#                  urllib instead, for zero dependencies.
+#
+# Measured peak RSS with all four models loaded and 20 requests served: 199.9 MB.
+
+numpy==2.2.6
+pandas==2.3.2
+scikit-learn==1.7.0
+joblib==1.5.1
+
+fastapi==0.122.0
+uvicorn[standard]==0.52.4
+pydantic==2.12.4
+
+python-dotenv==1.1.1

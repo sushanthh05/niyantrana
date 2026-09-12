@@ -1,0 +1,85 @@
+# Render Blueprint: both backend services.
+#
+# Deploy with: Render dashboard -> New -> Blueprint -> point at this repo.
+# See DEPLOYMENT.md for the full walkthrough, including the two values you must
+# paste in yourself (MONGO_URI and CORS_ORIGIN).
+#
+# Free plan notes that shape this file:
+#   * A free instance spins down after 15 minutes idle and takes ~1 minute to
+#     wake. ML_COLD_START_TIMEOUT_MS below is what stops the first request after
+#     an idle period from failing.
+#   * Free instance-hours are shared across the workspace. Two services that
+#     both sleep when idle fit comfortably; two always-on ones would not.
+#   * Free services get TLS terminated at Render's proxy, which is why
+#     TRUST_PROXY must be on -- without it Express sees plain http, refuses to
+#     set a Secure cookie, and login succeeds while issuing no session.
+
+services:
+  # --- Python inference service ---------------------------------------------
+  # Docker rather than a native Python runtime: the image deliberately excludes
+  # TensorFlow (~358 MB RSS on import) and pins every dependency to the versions
+  # that pickled the model artifacts.
+  - type: web
+    name: niyantrana-inference
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: ml
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PORT
+        value: "8000"
+      # Only the Node API calls this service, so no browser origin is needed.
+      # Left narrow on purpose rather than "*".
+      - key: CORS_ORIGIN
+        value: "https://niyantrana-api.onrender.com"
+      # Optional. Without it /recommend returns 503 and /predict is unaffected.
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # --- Node API -------------------------------------------------------------
+  - type: web
+    name: niyantrana-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend2
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Required. Without it the session cookie is never issued (see above).
+      - key: TRUST_PROXY
+        value: "true"
+      # Generated once by Render and kept across deploys. Rotating it logs
+      # everyone out, so do not regenerate casually.
+      - key: SESSION_SECRET
+        generateValue: true
+      # Paste your Atlas SRV string. Not generated, because the database lives
+      # outside Render.
+      - key: MONGO_URI
+        sync: false
+      # Paste the deployed frontend origin, e.g. https://niyantrana.pages.dev
+      # A wildcard is rejected at boot: it cannot be combined with credentials.
+      - key: CORS_ORIGIN
+        sync: false
+      # Wired automatically. `property: host` yields a bare hostname with no
+      # scheme, which InferenceClient.normalizeBaseUrl handles.
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: niyantrana-inference
+          property: host
+      # A sleeping instance takes ~1 minute to wake, so the first attempt after
+      # idle is retried once with this longer window.
+      - key: ML_COLD_START_TIMEOUT_MS
+        value: "75000"
+      # Optional. Without it /api/chat returns 503 and everything else works.
+      - key: GEMINI_API_KEY
+        sync: false

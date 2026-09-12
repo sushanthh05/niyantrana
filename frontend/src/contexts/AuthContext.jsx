@@ -1,185 +1,122 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import apiService from '../services/apiService.jsx';
-import { toast } from 'react-hot-toast';
+/**
+ * Authentication state, backed by real server sessions.
+ *
+ * Three defects from the previous version are fixed here:
+ *
+ * 1. **Double-wrapped user on reload.** `checkAuth` did `setUser(response.data)`
+ *    while the mock returned `{ data: { user } }`, so after any page refresh
+ *    `user` became `{ user: {...} }` and `user.name`, `user.points` and
+ *    `user.fattyLiverIndex` were all undefined. The dashboard silently fell
+ *    back to defaults on every reload.
+ * 2. **Wrong auth shape.** It stored `authToken` / `refreshToken` in
+ *    localStorage, but the backend uses Passport **session cookies**. Nothing
+ *    was ever sent to a server, and the scaffolding could not have worked.
+ * 3. **Any password accepted.** The mock commented "accept any email/password
+ *    combination". Credentials are now verified server-side with bcrypt.
+ *
+ * NOTE: the frontend is being rebuilt. This exists so the current tree has a
+ * working, honest auth path, not as the final design.
+ */
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-const AuthContext = createContext();
+import apiService, { ApiError } from '../services/apiService.jsx';
+
+const AuthContext = createContext(null);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used inside an AuthProvider');
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    // Check if user is logged in on app start
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          // Get user profile from mock service
-          const response = await apiService.user.getProfile();
-          setUser(response.data);
-        }
-      } catch (err) {
-        console.error('Auth check failed:', err);
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('refreshToken');
-        setUser(null);
-      } finally {
-        setLoading(false);
+  /**
+   * Resolve the session from the server.
+   *
+   * The session cookie is HttpOnly, so the browser cannot inspect it; asking
+   * the server is the only way to know whether one is valid. A 401 simply means
+   * "not signed in" and is not an error worth surfacing.
+   */
+  const refresh = useCallback(async () => {
+    try {
+      const response = await apiService.auth.me();
+      setUser(response.user ?? null);
+      return response.user ?? null;
+    } catch (requestError) {
+      if (!(requestError instanceof ApiError) || requestError.status !== 401) {
+        setError(requestError.message);
       }
-    };
-
-    checkAuth();
+      setUser(null);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const login = async (email, password) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await apiService.auth.login({ email, password });
-      
-      // Store tokens
-      localStorage.setItem('authToken', response.data.token);
-      if (response.data.refreshToken) {
-        localStorage.setItem('refreshToken', response.data.refreshToken);
-      }
-      
-      // Set user data
-      setUser(response.data.user);
-      
-      return { success: true, user: response.data.user };
-    } catch (err) {
-      const errorMessage = err.message || 'Login failed. Please try again.';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => { refresh(); }, [refresh]);
 
-  const signup = async (userData) => {
-    setLoading(true);
+  const login = useCallback(async (email, password) => {
     setError(null);
-    
     try {
-      const response = await apiService.auth.register(userData);
-      
-      // Store tokens
-      localStorage.setItem('authToken', response.data.token);
-      if (response.data.refreshToken) {
-        localStorage.setItem('refreshToken', response.data.refreshToken);
-      }
-      
-      // Set user data
-      setUser(response.data.user);
-      
-      return { success: true, user: response.data.user };
-    } catch (err) {
-      const errorMessage = err.message || 'Registration failed. Please try again.';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
+      await apiService.auth.login(email, password);
+      return { success: true, user: await refresh() };
+    } catch (requestError) {
+      setError(requestError.message);
+      return { success: false, error: requestError.message };
     }
-  };
+  }, [refresh]);
 
-  const logout = async () => {
+  const signup = useCallback(async (email, password) => {
+    setError(null);
     try {
-      // Call logout endpoint to invalidate token on server
+      await apiService.auth.register(email, password);
+      await apiService.auth.login(email, password);
+      return { success: true, user: await refresh() };
+    } catch (requestError) {
+      setError(requestError.message);
+      return { success: false, error: requestError.message };
+    }
+  }, [refresh]);
+
+  const logout = useCallback(async () => {
+    try {
       await apiService.auth.logout();
-    } catch (err) {
-      console.error('Logout API call failed:', err);
     } finally {
-      // Clear local state and storage regardless of API call result
+      // Clear locally even if the request failed, so the UI cannot show a
+      // signed-in state the server disagrees with.
       setUser(null);
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('refreshToken');
     }
-  };
+  }, []);
 
-  const updateUser = (updates) => {
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem('niyantrana_user', JSON.stringify(updatedUser));
-  };
-
-  const updateFattyLiverIndex = (newScore) => {
-    updateUser({ fattyLiverIndex: newScore });
-  };
-
-  const addPoints = (points) => {
-    const newPoints = user.points + points;
-    let newLevel = user.level;
-    
-    // Simple level progression
-    if (newPoints >= 1000 && user.level === 'Wellness Novice') {
-      newLevel = 'Wellness Explorer';
-    } else if (newPoints >= 2500 && user.level === 'Wellness Explorer') {
-      newLevel = 'Wellness Champion';
-    } else if (newPoints >= 5000 && user.level === 'Wellness Champion') {
-      newLevel = 'Wellness Master';
-    }
-    
-    updateUser({ 
-      points: newPoints, 
-      level: newLevel 
-    });
-    
-    if (newLevel !== user.level) {
-      toast.success(`Congratulations! You've reached ${newLevel}!`);
-    }
-  };
-
-  const updateStreak = (newStreak) => {
-    updateUser({ streak: newStreak });
-  };
-
-  const updateProfile = async (profileData) => {
-    setLoading(true);
+  const saveProfile = useCallback(async (profile) => {
     setError(null);
-    
     try {
-      const response = await apiService.user.updateProfile(profileData);
-      
-      // Update user data with response
-      setUser(response.data);
-      
-      return { success: true, user: response.data };
-    } catch (err) {
-      const errorMessage = err.message || 'Profile update failed. Please try again.';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setLoading(false);
+      const response = await apiService.user.saveProfile(profile);
+      await refresh();
+      return { success: true, staticData: response.staticData };
+    } catch (requestError) {
+      setError(requestError.message);
+      return { success: false, error: requestError.message, details: requestError.details };
     }
-  };
+  }, [refresh]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
-    loading,
+    isAuthenticated: Boolean(user),
+    isLoading,
     error,
     login,
     signup,
     logout,
-    updateUser,
-    updateProfile,
-    updateFattyLiverIndex,
-    addPoints,
-    updateStreak,
-  };
+    saveProfile,
+    refresh,
+  }), [user, isLoading, error, login, signup, logout, saveProfile, refresh]);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export default AuthContext;

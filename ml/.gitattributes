@@ -2,3 +2,11 @@ models/*.h5 filter=lfs diff=lfs merge=lfs -text
 models/*.pkl filter=lfs diff=lfs merge=lfs -text
 data/raw/*.csv filter=lfs diff=lfs merge=lfs -text
 data/raw/*.xlsx filter=lfs diff=lfs merge=lfs -text
+
+# The slim food CSV is a BUILD INPUT: the Dockerfile COPYs it and the backend
+# seed script reads it. Keep it out of LFS. `data/raw/*.csv filter=lfs` above
+# would otherwise apply, and a build host that does not fetch LFS objects would
+# copy a ~130-byte pointer stub instead of the database -- the recommender would
+# then load 0 foods and say so quietly rather than failing.
+# It is 0.19 MB, so a plain git blob costs nothing.
+data/raw/anuvaad_indb_2024.11.csv -filter -diff -merge text

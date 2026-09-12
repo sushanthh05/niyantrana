@@ -386,3 +386,140 @@ direction `unknown`.
 14. **The synthetic LSTM is retired from the serving path** but still exists in
     `src/inference/predictor.py` for comparison. Anything it touches is tagged
     `Provenance.SIMULATION`.
+
+
+---
+
+# Part 4 — Serving (Day 5)
+
+## 20. Deployment footprint, measured
+
+| Stage | RSS |
+|---|---|
+| bare python | 17.8 MB |
+| + import `src.api.app` (nothing loaded yet) | 103.8 MB |
+| + `GET /health` | 110.5 MB |
+| + `POST /predict` (loads both model bundles) | 198.8 MB |
+| + 20 more requests (steady state) | **199.9 MB** |
+| uvicorn worker under concurrent load | **249.4 MB** |
+
+Render free tier allows 512 MB. Steady state grew 1.1 MB over 20 requests, so
+there is no leak.
+
+Two decisions make this fit:
+
+1. **TensorFlow is never installed.** Importing it alone costs ~358 MB against
+   onnxruntime 33 MB, and the served models are scikit-learn estimators anyway.
+2. **onnxruntime is not installed either.** It was needed for the multimodal
+   LSTM, which Part 3 retired from serving. Verified by asserting it is absent
+   from `sys.modules` after the app is imported.
+
+## 21. Latency: the trajectory was 98% of a request
+
+Profiling the composed endpoint:
+
+| Operation | Time |
+|---|---|
+| engine.predict (1 profile) | 35.6 ms |
+| classifiers.predict (1 profile, 4 models) | 25.4 ms |
+| **trajectory.compute (11 windows)** | **348.1 ms** |
+| full assessment with history | 354.6 ms |
+
+The trajectory walked 11 windows, each calling `predict_proba` on four
+classifiers with a 1-row frame: 44 calls at roughly 6.4 ms of scikit-learn
+per-call overhead. The work is trivial; the overhead is not.
+
+Batching into one call per classifier, regardless of window count:
+
+| | before | after | speedup |
+|---|---|---|---|
+| trajectory.compute | 348.1 ms | 24.7 ms | **14x** |
+| assessment with history | 354.6 ms | 85.8 ms | **4.1x** |
+| over HTTP, end to end | — | **~100 ms** | — |
+
+## 22. The health check was monitoring the wrong files
+
+`/health` reported `multimodal_model.onnx`, `feature_scaler.pkl` and
+`target_scaler.pkl` — artifacts belonging to the retired LSTM path. It returned
+`"status": "ok"` while describing files no request reads, and would have gone on
+returning `"ok"` with `risk_engine.joblib` deleted.
+
+A health check that monitors the wrong files is worse than none: it converts a
+detectable outage into a silent one. Now:
+
+* reports the three artifacts the request path actually reads;
+* returns **503** when a required one is missing, so an under-provisioned
+  instance leaves rotation instead of serving errors;
+* treats `/recommend` being disabled as **not** a failure, because prediction
+  is unaffected by it;
+* never loads a model, so it stays cheap enough to poll every 30 seconds.
+
+## 23. Additional limitations (Day 5)
+
+15. ~~The Docker image has not been built.~~ **Resolved.** Built and run under
+    `--memory=512m --cpus=0.5`: 627 MB image, 144.9 MiB resident (28% of the
+    cap), 54-66 ms per request, no OOM. See §24.
+16. **Single-worker concurrency degrades.** 12 simultaneous requests took 11.9s
+    against ~100 ms solo. CPU-bound scikit-learn work serialises. Acceptable for
+    a demo on a single free instance; scale with instances, not workers, since
+    each worker loads its own copy of the models.
+17. **`/recommend` has never been exercised against a live Gemini key.** The
+    503 degradation path is tested; the success path is not.
+
+
+## 24. Container verification
+
+Built and run under the free tier constraints (`--memory=512m --cpus=0.5`):
+
+| | |
+|---|---|
+| Image size | **627 MB** |
+| Memory under load | **144.9 MiB / 512 MiB (28%)** |
+| `/predict` latency, 84 days of history | **54-66 ms** |
+| Cold start to first healthy response | **5.4 s** |
+| OOM kills | none |
+
+Container latency (54-66 ms) beats the Windows host (~100 ms) despite a 0.5 CPU
+cap, which is a Linux-vs-Windows process difference rather than anything about
+the code.
+
+### Image slimming: 947 MB -> 627 MB
+
+| Change | Saving |
+|---|---|
+| Gemini SDK replaced with a stdlib REST call | **-214 MB** |
+| `tests/` stripped from scipy, sklearn, pandas | **-106 MB** |
+
+The SDK pulled `googleapiclient` (103 MB), `google` (25 MB), `grpc` (18 MB) and
+`cryptography` (16 MB) to make one text-generation POST. `GeminiClient` keeps
+the same two-method interface, so swapping the transport touched one class.
+
+`__pycache__` was deliberately **not** removed despite being the largest
+remaining category. `PYTHONDONTWRITEBYTECODE=1` means deleting it would force a
+full recompile of scipy, pandas and scikit-learn on every cold start, and this
+tier spins down after 15 minutes idle. Image size is paid once per deploy; cold
+start is paid by every user after an idle period.
+
+## 25. Two bugs the container found that tests did not
+
+**Stripping `tests/` broke the image silently.** Removing test directories to
+save 156 MB looked obviously safe. It was not: `scipy` star-imports
+`numpy.testing`, which imports `numpy._core.tests._natype`. numpy test code is
+on the runtime import path. The build now excludes numpy and runs an explicit
+import check, so a broken image cannot be produced.
+
+**`/health` reported "ok" on a completely dead service.** In that broken image
+every artifact file was present, so presence-only readiness returned
+`"status": "ok"` and Docker reported `healthy` — while every `/predict` returned
+500. A health check that cannot detect a dead service is worse than none,
+because it keeps the instance in rotation and converts a loud failure into a
+silent one.
+
+`/health` now runs a cached functional probe that loads both model bundles and
+scores a synthetic profile. A container started with a deliberately bad
+`RISK_ENGINE_PATH` returns **503**. Caching means one model load per process
+rather than one per poll; and because the first `/health` call warms the models,
+a 200 now means genuinely ready rather than merely running.
+
+Both are covered by tests: `test_health_probe_reports_a_broken_model_stack` and
+`test_probe_result_is_cached`.

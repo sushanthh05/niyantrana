@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { TrendingUp, Activity, Moon, Target, Award, Zap, Plus, Utensils, Heart, Droplet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
-import GoogleFitWidget from '../components/GoogleFitWidget.jsx';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -136,7 +135,6 @@ const DashboardPage = () => {
       </motion.div>
 
       {/* Google Fit Widget */}
-      <GoogleFitWidget />
 
       {/* Quick Actions */}
       <motion.div

@@ -21,19 +21,31 @@ Bugs fixed while porting from `rag_engine/`:
 3. rows with a NaN food_name produced a non-boolean mask and crashed the filter;
 4. NaN nutrient values reached `int()` and raised while formatting the prompt;
 5. a missing GOOGLE_API_KEY called `exit()` at import.
+
+The LLM call was later moved off the google-generativeai SDK onto the REST
+endpoint, removing about 162 MB from the container image. See `GeminiClient`.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
+import urllib.error
+import urllib.request
 
 import pandas as pd
 
 from ..domain.errors import RecommenderUnavailableError, ValidationError
 
 _ML_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_FOOD_DB = os.path.join(_ML_ROOT, "data", "raw", "Anuvaad_INDB_2024.11.xlsx")
+
+# CSV is the deployment format: 58x faster to load, 5.3x smaller, and it removes
+# openpyxl from the serving image entirely. The source spreadsheet stays as the
+# fallback so a fresh checkout still works before the build step has run.
+# Regenerate with: python -m src.data.build_food_csv
+DEFAULT_FOOD_CSV = os.path.join(_ML_ROOT, "data", "raw", "anuvaad_indb_2024.11.csv")
+DEFAULT_FOOD_XLSX = os.path.join(_ML_ROOT, "data", "raw", "Anuvaad_INDB_2024.11.xlsx")
 
 REQUIRED_COLUMNS = ("food_name", "energy_kcal", "fat_g", "protein_g")
 
@@ -50,7 +62,12 @@ class FoodRepository:
     _lock = threading.Lock()
 
     def __init__(self, path: str | None = None):
-        self._path = path or os.environ.get("FOOD_DB_PATH", DEFAULT_FOOD_DB)
+        configured = path or os.environ.get("FOOD_DB_PATH")
+        if configured:
+            self._path = configured
+        else:
+            self._path = (DEFAULT_FOOD_CSV if os.path.exists(DEFAULT_FOOD_CSV)
+                          else DEFAULT_FOOD_XLSX)
         self._frame: pd.DataFrame | None = None
 
     @classmethod
@@ -71,7 +88,8 @@ class FoodRepository:
 
     def _load(self) -> pd.DataFrame:
         try:
-            frame = pd.read_excel(self._path)
+            frame = (pd.read_csv(self._path) if self._path.lower().endswith(".csv")
+                     else pd.read_excel(self._path))
         except FileNotFoundError:
             print(f"WARNING: food database not found at {self._path}; retrieval disabled.")
             return pd.DataFrame(columns=list(REQUIRED_COLUMNS))
@@ -172,18 +190,57 @@ Keep it under 120 words.
 
 
 class GeminiClient:
-    """Adapter over the Google Generative AI SDK."""
+    """Adapter over the Gemini REST API, using only the standard library.
+
+    Deliberately NOT the `google-generativeai` SDK. That package pulls in
+    googleapiclient (103 MB), google (25 MB), grpc (18 MB) and cryptography
+    (16 MB) -- roughly 162 MB of container image -- in order to make a single
+    text-generation POST. The REST endpoint needs no dependency at all, and a
+    smaller image means faster cold starts on a tier that spins down after
+    15 minutes of inactivity.
+
+    Keeping this behind the same two-method interface is what made the swap a
+    one-class change (Adapter).
+    """
 
     DEFAULT_MODEL = "gemini-2.5-flash"
+    ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/"
+                "models/{model}:generateContent")
+    DEFAULT_TIMEOUT = 20.0
 
-    def __init__(self, api_key: str | None = None, model_name: str | None = None):
-        self._api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    def __init__(self, api_key: str | None = None, model_name: str | None = None,
+                 timeout: float | None = None):
+        self._api_key = (api_key or os.environ.get("GEMINI_API_KEY")
+                         or os.environ.get("GOOGLE_API_KEY"))
         self._model_name = model_name or os.environ.get("GEMINI_MODEL", self.DEFAULT_MODEL)
-        self._model = None
+        self._timeout = timeout or float(os.environ.get("GEMINI_TIMEOUT", self.DEFAULT_TIMEOUT))
 
     @property
     def is_configured(self) -> bool:
         return bool(self._api_key)
+
+    def _request_body(self, prompt: str) -> bytes:
+        return json.dumps({
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 400},
+        }).encode("utf-8")
+
+    @staticmethod
+    def _extract_text(payload: dict) -> str:
+        """Pull the generated text out, distinguishing empty from blocked."""
+        candidates = payload.get("candidates") or []
+        if not candidates:
+            blocked = (payload.get("promptFeedback") or {}).get("blockReason")
+            raise RecommenderUnavailableError(
+                f"Gemini returned no candidates (blockReason={blocked or 'none'})")
+
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "".join(part.get("text", "") for part in parts).strip()
+        if not text:
+            reason = candidates[0].get("finishReason", "unknown")
+            raise RecommenderUnavailableError(
+                f"Gemini returned an empty response (finishReason={reason})")
+        return text
 
     def generate(self, prompt: str) -> str:
         if not self.is_configured:
@@ -191,12 +248,29 @@ class GeminiClient:
                 "GEMINI_API_KEY is not set; /recommend is disabled. "
                 "Prediction endpoints are unaffected."
             )
-        if self._model is None:
-            import google.generativeai as genai
 
-            genai.configure(api_key=self._api_key)
-            self._model = genai.GenerativeModel(self._model_name)
-        return self._model.generate_content(prompt).text
+        url = self.ENDPOINT.format(model=self._model_name)
+        request = urllib.request.Request(
+            url,
+            data=self._request_body(prompt),
+            headers={"Content-Type": "application/json",
+                     "x-goog-api-key": self._api_key},
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                payload = json.load(response)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            # 429 and 5xx are transient; 4xx usually means a bad key or model.
+            raise RecommenderUnavailableError(
+                f"Gemini request failed with HTTP {exc.code}: {detail}") from exc
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise RecommenderUnavailableError(
+                f"Gemini request failed: {exc}") from exc
+
+        return self._extract_text(payload)
 
 
 class RecommendationEngine:

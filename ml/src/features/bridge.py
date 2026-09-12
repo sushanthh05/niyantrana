@@ -113,6 +113,8 @@ class FeatureBridge:
         activity; otherwise those stay None and the gradient-boosting model
         handles the missingness natively.
         """
+        # Diet fields pass through as None when nothing was logged. The
+        # estimators handle NaN natively; substituting 0 would assert a fast.
         return {
             "age": profile.age,
             "sex_male": profile.sex.numeric,

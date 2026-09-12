@@ -19,8 +19,14 @@ export function errorHandler(err, _req, res, _next) {
   const isKnown = err instanceof AppError;
   const statusCode = isKnown ? err.statusCode : 500;
 
-  if (!isKnown || statusCode >= 500) {
+  // A 503 from a dependency we already model is expected operational noise --
+  // log it as a one-line warning. Only unknown errors and 5xx faults get a stack.
+  if (!isKnown) {
     console.error('[error]', err.message, config.isProduction ? '' : err.stack);
+  } else if (statusCode === 503) {
+    console.warn('[unavailable]', err.message);
+  } else if (statusCode >= 500) {
+    console.error('[error]', err.message);
   }
 
   const body = {

@@ -79,7 +79,7 @@ These are the real blockers, and they gate specific days:
 | Account | Cost | Time | Needed by | Notes |
 |---|---|---|---|---|
 | **Google AI Studio** (Gemini key) | Free | 2 min | Day 5 | `aistudio.google.com` → API key. Free tier ~10 RPM on 2.5 Flash |
-| **Fitbit Developer** | Free | 10 min | **Day 10** | `dev.fitbit.com` → register app, scopes `activity heartrate sleep profile`. ⚠️ Set callback URL to your deployed frontend; you'll need to revisit after Day 12 |
+| ~~Fitbit Developer~~ | — | — | — | ❌ **Not available.** New developer signups closed 1 May 2024 and the Fitbit Web API sunsets September 2026. Its replacement, the Google Health API, gates every scope behind a restricted-scope privacy review. Garmin requires a legal entity. **No wearable OAuth is needed:** wearable data arrives via `POST /api/wearable/import` (any provider export) or `POST /api/wearable/demo`. Withings and Oura remain open if you later want a live integration. |
 | **MongoDB Atlas** | Free forever | 10 min | Day 11 | M0 tier, 512 MB, no credit card |
 | **Render** | Free | 5 min | Day 11 | Two free web services (Node + Python) |
 | **Cloudflare Pages** | Free | 5 min | Day 12 | Or Vercel Hobby |

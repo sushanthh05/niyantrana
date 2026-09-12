@@ -12,8 +12,7 @@
     "mongodb": "^6.19.0",
     "mongoose": "^8.18.0",
     "passport": "^0.7.0",
-    "passport-local": "^1.0.0",
-    "xlsx": "^0.18.5"
+    "passport-local": "^1.0.0"
   },
   "name": "niyantrana-api",
   "version": "2.0.0",
@@ -26,6 +25,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node scripts/seedFoods.js",
-    "lint": "node --check server.js"
+    "lint": "node --check server.js",
+    "test:integration": "node --test --test-concurrency=1 tests/*.test.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js"
   }
 }

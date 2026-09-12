@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from ..domain.errors import NiyantranaError
+from ..inference.artifacts import full_readiness
 from ..recommendation.engine import RecommendationEngine
 from ..risk.assessor import RiskAssessor
 from .schemas import (AssessmentResponse, ErrorResponse, PredictRequest,
@@ -81,15 +82,26 @@ async def handle_domain_error(request: Request, exc: NiyantranaError):
 # --- Routes -----------------------------------------------------------------
 @app.get("/health")
 def health():
-    """Liveness plus artifact readiness. Never raises."""
-    from ..inference.registry import ModelRegistry
+    """Liveness plus readiness of the artifacts the request path actually reads.
 
-    artifacts = ModelRegistry.instance().health()
-    return {
-        "status": "ok" if artifacts.get("ready") else "degraded",
+    Checks artifact presence AND that the model stack actually loads and
+    predicts, because presence alone is not readiness: a build that stripped
+    numpy test modules left every file in place while every /predict returned
+    500. The functional probe is cached after the first call.
+
+    Returns 503 when a required model is missing or the stack is broken, so a
+    dead instance leaves rotation rather than serving errors. `/recommend` being
+    disabled is NOT a failure -- prediction is unaffected by it.
+    """
+    artifacts = full_readiness()
+    ready = artifacts["ready"]
+    body = {
+        "status": "ok" if ready else "degraded",
         "artifacts": artifacts,
         "recommendation_enabled": RecommendationEngine.is_configured(),
+        "version": app.version,
     }
+    return body if ready else JSONResponse(status_code=503, content=body)
 
 
 @app.post("/predict", response_model=AssessmentResponse)

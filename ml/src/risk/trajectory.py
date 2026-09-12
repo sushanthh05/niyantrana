@@ -59,15 +59,22 @@ class TrajectoryAnalyser:
         """Days of wearable data needed before any trajectory can be produced."""
         return self._window_length + self._step_days * (MIN_POINTS_FOR_TREND - 1)
 
-    def _scores_for(self, profile: UserProfile, window: WearableWindow) -> dict:
-        """Risk per condition for one window, on the 0-100 scale."""
-        if self._classifiers is not None:
-            return {condition: result.score
-                    for condition, result in self._classifiers.predict(profile, window).items()}
+    def _scores_for_all(self, profile: UserProfile, windows: list) -> list:
+        """Risk per condition for every window, on the 0-100 scale.
 
-        biomarkers = self._engine.predict(profile, window)
-        fli = biomarkers.fatty_liver_index(profile.bmi, profile.waist_cm)
-        return {"fatty_liver": fli} if fli is not None else {}
+        Batched deliberately: scoring windows one at a time made four model
+        calls per window and dominated request latency.
+        """
+        if self._classifiers is not None:
+            return [{condition: result.score for condition, result in scored.items()}
+                    for scored in self._classifiers.predict_batch(profile, windows)]
+
+        scores = []
+        for window in windows:
+            biomarkers = self._engine.predict(profile, window)
+            fli = biomarkers.fatty_liver_index(profile.bmi, profile.waist_cm)
+            scores.append({"fatty_liver": fli} if fli is not None else {})
+        return scores
 
     def compute(self, profile: UserProfile,
                 history: Sequence[WearableDay]) -> tuple[RiskTrajectory, ...]:
@@ -80,26 +87,19 @@ class TrajectoryAnalyser:
         if len(days) < self._window_length:
             return ()
 
-        points: list[TrajectoryPoint] = []
         # Walk windows forward, always ending on the most recent day so the
-        # final point reflects the user's current state.
-        starts = range(0, len(days) - self._window_length + 1, self._step_days)
-        for start in starts:
-            window = WearableWindow(tuple(days[start:start + self._window_length]))
-            points.append(TrajectoryPoint(
-                day_index=start + self._window_length - 1,
-                scores=self._scores_for(profile, window),
-                provenance=Provenance.MODEL,
-            ))
-
+        # final point reflects the current state.
+        starts = list(range(0, len(days) - self._window_length + 1, self._step_days))
         last_start = len(days) - self._window_length
-        if points and points[-1].day_index != len(days) - 1:
-            window = WearableWindow(tuple(days[last_start:]))
-            points.append(TrajectoryPoint(
-                day_index=len(days) - 1,
-                scores=self._scores_for(profile, window),
-                provenance=Provenance.MODEL,
-            ))
+        if starts[-1] != last_start:
+            starts.append(last_start)
+
+        windows = [WearableWindow(tuple(days[s:s + self._window_length])) for s in starts]
+        scored = self._scores_for_all(profile, windows)
+
+        points = [TrajectoryPoint(day_index=start + self._window_length - 1,
+                                  scores=scores, provenance=Provenance.MODEL)
+                  for start, scores in zip(starts, scored)]
 
         conditions = sorted({c for point in points for c in point.scores})
         return tuple(self._trajectory_for(condition, points) for condition in conditions)

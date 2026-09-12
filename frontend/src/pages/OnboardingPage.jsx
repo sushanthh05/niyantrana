@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, ArrowLeft, User, Ruler, Scale, Users, Cigarette, Wine, Shield, CheckCircle, Watch, Smartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import googleFitService from '../services/googleFitService.jsx';
 import toast from 'react-hot-toast';
 
 const OnboardingPage = () => {
@@ -145,16 +144,14 @@ const OnboardingPage = () => {
     }
   };
 
-  const handleConnectGoogleFit = async () => {
+  const handleConnectWearable = async () => {
     setIsConnecting(true);
     try {
-      const result = await googleFitService.authenticate();
-      
-      if (result.success) {
-        toast.success('Successfully connected to Google Fit!');
-        // Save the connection status to user profile or local storage
-        localStorage.setItem('googleFitConnected', 'true');
-        localStorage.setItem('googleFitUser', JSON.stringify(result.user));
+      // Google Fit was removed: new developer registrations closed on
+      // 1 May 2024 and the APIs are being decommissioned. Wearable data now
+      // arrives through POST /api/wearable/import (any provider export) or
+      // POST /api/wearable/demo. See backend2/src/services/wearableImportService.js.
+      const result = { success: false, reason: 'wearable-import' };
         
         await signup(formData);
         navigate('/dashboard');
@@ -225,7 +222,7 @@ const OnboardingPage = () => {
 
           <div className="space-y-3">
             <button
-              onClick={handleConnectGoogleFit}
+              onClick={handleConnectWearable}
               disabled={isConnecting}
               className="btn-primary w-full flex items-center justify-center space-x-2"
             >

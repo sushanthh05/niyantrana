@@ -1,0 +1,16 @@
+data/nhanes/
+data/processed/
+data/raw/*.xlsx
+data/raw/*.csv
+!data/raw/anuvaad_indb_2024.11.csv
+models/*.h5
+models/*.onnx
+models/saved_model/
+models/*scaler.pkl
+notebooks/
+reports/
+tests/
+mlenv/
+__pycache__/
+*.pyc
+.pytest_cache/

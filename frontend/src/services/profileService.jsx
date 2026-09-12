@@ -31,20 +31,6 @@ const defaultPreferences = {
 };
 
 // Mock health data for reports
-const mockHealthData = {
-  recentVitals: [
-    { date: '2023-06-01', bloodPressure: '120/80', heartRate: 72, bloodGlucose: 95 },
-    { date: '2023-06-08', bloodPressure: '118/78', heartRate: 70, bloodGlucose: 92 },
-    { date: '2023-06-15', bloodPressure: '122/82', heartRate: 74, bloodGlucose: 98 },
-    { date: '2023-06-22', bloodPressure: '119/79', heartRate: 71, bloodGlucose: 94 }
-  ],
-  medications: [
-    { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily' },
-    { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily' }
-  ],
-  allergies: ['Penicillin', 'Peanuts'],
-  conditions: ['Type 2 Diabetes', 'Hypertension']
-};
 
 // Mock devices that can be connected
 const availableDevices = [
@@ -167,14 +153,20 @@ export const disconnectDevice = (userId, deviceId) => {
 };
 
 // Generate a doctor's report with user health data
-export const generateDoctorsReport = (userId) => {
-  // In a real app, this would compile actual user data
-  // For now, we'll return mock data
-  return {
-    patientId: userId,
-    generatedAt: new Date().toISOString(),
-    data: mockHealthData
-  };
+export const generateDoctorsReport = () => {
+  // REMOVED. This returned a hardcoded set of someone
+  // else's June-2023 lab values, complete with Metformin, Lisinopril and a
+  // penicillin allergy -- presented to the user as their own medical summary
+  // for sharing with a doctor. It was the most dangerous mock in the codebase.
+  //
+  // A real report must be assembled from the user's own stored readings
+  // (GET /api/logs/vitals) and assessments (POST /api/predict). Until that is
+  // built, refusing is the only safe behaviour: a plausible-looking report
+  // containing another person's data is worse than no report.
+  throw new Error(
+    'Doctor report generation is not available yet. It will be built from your '
+    + 'own recorded vitals and assessments.',
+  );
 };
 
 // Get theme settings
