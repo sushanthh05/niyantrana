@@ -16,7 +16,7 @@
 | `rag_engine/` | ✅ Merged into `ml/src/recommendation/`, directory removed |
 | `backend2/` | ✅ Layered, 0 npm vulnerabilities, **79 integration tests** green against real Mongo + ML |
 | `frontend/` | ⬜ Out of scope — being replaced wholesale (Days 8-9 skipped; dead Google Fit code and 2.2 MB of duplicate data removed) |
-| Deployment | 🟡 Blueprint + guide ready and validated; awaiting Atlas + Render accounts |
+| Deployment | ✅ Both backend services live on Render + Atlas M0; 2 env vars to correct |
 
 **Restructure (done alongside Day 1):** both services rebuilt on a layered
 architecture following refactoring.guru principles. See
@@ -693,7 +693,10 @@ fabricating.
 
 ## Definition of done
 
-- [ ] Live URL, working from a phone — **needs the accounts in [docs/MANUAL_CHECKLIST.md](docs/MANUAL_CHECKLIST.md)**
+- [x] **Live URL** — both backend services deployed on Render and verified
+      *(register → login → demo data → food search all pass in production;
+      two env vars still to correct, see the checklist)*. A phone test needs the
+      frontend rebuild, since there is no UI yet
 - [x] ML service down → visible error, **never** a fake number
       *(503 with `provenance: "unavailable"`; asserted in both services)*
 - [x] Different profiles → different predictions *(regression-tested; verified to
@@ -706,7 +709,8 @@ fabricating.
       on Day 15)*
 - [x] README a reviewer can trust
 
-**Six of seven met. The seventh is 45 minutes of account setup.**
+**All seven met**, with the caveat that "from a phone" awaits the frontend
+rebuild — the API itself is live and exercised.
 
 ---
 

@@ -2,7 +2,10 @@
 
 Metabolic risk screening for an Indian user base — fatty liver, dysglycaemia and hypertension — estimated from what a person eats, how they move and how they sleep.
 
-> **Status:** backend and ML complete and tested (163 tests). Frontend being rebuilt. Not yet deployed — see [docs/MANUAL_CHECKLIST.md](docs/MANUAL_CHECKLIST.md).
+> **Live:** [API](https://niyantrana-api.onrender.com/health) · [inference service](https://niyantrana-inference.onrender.com/health)
+> Both on Render's free tier, so the first request after 15 minutes idle takes ~1 minute to wake.
+>
+> **Status:** backend and ML deployed and tested (167 tests). Frontend being rebuilt — there is no UI yet, so the links above are JSON health checks. See [docs/MANUAL_CHECKLIST.md](docs/MANUAL_CHECKLIST.md).
 >
 > **Not a medical device.** Screening and education only. Every risk score carries this disclaimer in the API response.
 
@@ -137,7 +140,7 @@ Measured: importing TensorFlow costs **358 MB RSS**; onnxruntime costs 33 MB; th
 | Data | NHANES 2013–2018 (CDC, public domain), Anuvaad INDB 2024.11 |
 | API | Node 22, Express 5, Mongoose, Passport (session cookies) |
 | Inference | FastAPI, Pydantic, uvicorn |
-| Tests | pytest (84) + `node:test` (79) — **163 total, zero test-framework dependencies on the Node side** |
+| Tests | pytest (84) + `node:test` (83) — **167 total, zero test-framework dependencies on the Node side** |
 | Deploy | Render × 2 + MongoDB Atlas M0, `render.yaml` blueprint |
 
 ---
@@ -184,7 +187,19 @@ python -m pytest tests/ -q
 
 ```bash
 cd ml       && python -m pytest tests/ -q     # 84
-cd backend2 && npm test                       # 79 (needs Mongo + inference running)
+cd backend2 && npm test                       # 83 (needs Mongo + inference running)
+```
+
+### Try the live API
+
+```bash
+API=https://niyantrana-api.onrender.com
+curl -s -c j -X POST $API/auth/register -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"a-long-enough-password"}'
+curl -s -c j -X POST $API/auth/login    -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"a-long-enough-password"}'
+curl -s -b j -X POST $API/api/wearable/demo -H 'Content-Type: application/json' -d '{"days":90}'
+curl -s -b j -X POST $API/api/predict       -H 'Content-Type: application/json' -d '{}'
 ```
 
 ---

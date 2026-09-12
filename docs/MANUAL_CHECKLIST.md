@@ -6,82 +6,73 @@ Everything in the 15-day plan that cannot be completed from a terminal, grouped 
 
 ---
 
-## Priority 0 — Do this first (2 minutes, no accounts needed)
+## ✅ Deployed — verified live 2026-09-12
 
-### ☐ Commit the deployment artifacts *(Day 11)*
+Both services are up and answering:
 
-The Docker build works on your machine and **will fail on Render**, because these exist locally but are not in git:
+| | |
+|---|---|
+| API | `https://niyantrana-api.onrender.com/health` → `status: ok`, `database: connected` |
+| Inference | `https://niyantrana-inference.onrender.com/health` → `status: ok`, `functional: true` |
 
-```bash
-cd d:/agnivesh/Hackathons/Niyantrana/niyantrana
-git add ml/Dockerfile ml/.dockerignore ml/requirements-serve.txt \
-        ml/.gitattributes ml/data/raw/anuvaad_indb_2024.11.csv \
-        ml/scripts/preflight.py render.yaml
-git commit -m "Add deployment artifacts"
-```
-
-Verify with `cd ml && python scripts/preflight.py` — it should say **Ready to deploy**.
-
-> **Why `.gitattributes` is in that list.** `data/raw/*.csv` is routed to Git LFS. Without the exemption I added, committing the food CSV would store an LFS *pointer*, and a build host that doesn't fetch LFS would copy a 130-byte stub — the recommender would then load 0 foods and say nothing. `preflight.py` now fails if any artifact looks like a pointer.
+Confirmed working in production: register → login (**cookie issued, so `TRUST_PROXY` is right**) → authenticated request → food search returning *Mutton biryani/biriyani* (**foods seeded**) → 90 days of demo data → `v2.0.0` tagged, preflight clean.
 
 ---
 
-## Priority 1 — Accounts, to get it deployed (~45 min total)
+## Priority 0 — Two production bugs the smoke test found (~5 min)
 
-### ☐ MongoDB Atlas *(Day 11)* — 10 min
+Both are fixed in code, but production is still running the old build.
 
-1. `cloud.mongodb.com` → free **M0** cluster (512 MB, free forever, no card)
-2. **Database Access** → create a user, strong password
-3. **Network Access** → allow `0.0.0.0/0`
+### ☐ `ML_SERVICE_URL` does not resolve
 
-   Render's free tier has no static outbound IP, so an allowlist isn't possible. Credentials still protect the database; if that trade-off bothers you, a paid Render plan gives static IPs.
-4. Copy the SRV string and **keep `/niyantrana` on the end** — without a database name Mongo defaults to `test` and your seeded foods become invisible.
+`/api/predict` currently returns `provenance: "unavailable"` and
+`/api/inference/health` reports `ENOTFOUND` — while the inference service
+answers fine from the public internet.
 
-### ☐ Render — deploy both services *(Day 11)* — 15 min
+**Cause:** `render.yaml` wired it with `fromService … property: host`, which
+returns the hostname on Render's **private network**. Private networking between
+web services is not available on the free plan, so the name never resolved.
 
-Dashboard → **New** → **Blueprint** → this repo. It reads `render.yaml` and creates both services.
+**Fix now** — Render dashboard → `niyantrana-api` → Environment:
 
-Paste two values (marked `sync: false`, so Render asks):
-
-| Service | Variable | Value |
-|---|---|---|
-| `niyantrana-api` | `MONGO_URI` | your Atlas SRV string |
-| `niyantrana-api` | `CORS_ORIGIN` | frontend origin, e.g. `https://niyantrana.pages.dev` |
-
-**Deploy `niyantrana-inference` first** — the API's health check depends on it.
-
-`ML_SERVICE_URL`, `SESSION_SECRET` and `TRUST_PROXY` are wired automatically. Do not remove `TRUST_PROXY=true`: without it Render terminates TLS at its proxy, Express sees plain http, refuses to send a `Secure` cookie, and **login returns 200 while issuing no session.** Nothing errors; users simply can't stay logged in.
-
-### ☐ Seed the production food database *(Day 11)* — 2 min
-
-```bash
-cd backend2
-MONGO_URI="mongodb+srv://...your-string.../niyantrana" npm run seed
+```
+ML_SERVICE_URL = https://niyantrana-inference.onrender.com
 ```
 
-Expect `Seeded 1014 foods`. Food search and meal logging return empty until this runs.
+`render.yaml` is already corrected, so a redeploy from git also fixes it.
 
-### ☐ Gemini API key *(Day 7)* — 2 min, optional
+*Silver lining: this accidentally proved the core contract in production. An
+unreachable model produced a 503 with `provenance: "unavailable"` and **no
+invented scores** — exactly what v1 got wrong three different ways.*
 
-`aistudio.google.com` → API key → set `GEMINI_API_KEY` on **both** Render services.
+### ☐ The Gemini model name was retired
 
-Without it, `/api/chat` and `/api/recommend` return **503** and everything else works normally. This is the only way to exercise the chat and recommendation success paths — I could only test their failure paths.
+`/api/chat` returns `404: this model models/gemini-2.5-flash is no longer
+available to new users` — months before its published October 2026 date.
 
-### ☐ Verify production *(Day 11)* — 5 min
+**Fix now** — set on **both** services:
+
+```
+GEMINI_MODEL = gemini-3.5-flash
+```
+
+**Durable fix (already in code, needs a push):** both clients now try
+`gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-2.5-flash`, cache the
+first that answers, and do *not* walk the chain on a 401 or 429 since those are
+not model-specific. Google shipped three Flash generations in a year, so a
+single hardcoded name is a liability. Four tests cover it.
+
+### ☐ Then re-verify
 
 ```bash
 API=https://niyantrana-api.onrender.com
-ML=https://niyantrana-inference.onrender.com
-
-curl -s $ML/health  | jq '.status, .artifacts.functional'   # "ok", true
-curl -s $API/health | jq '.status, .database'               # "ok", "connected"
+curl -s $API/api/inference/health | jq          # reachable: true, and now reports the url
+curl -s -b j -X POST $API/api/predict -H 'Content-Type: application/json' -d '{}' | jq '.provenance, .risks'
+curl -s -b j -X POST $API/api/chat -H 'Content-Type: application/json' -d '{"message":"How is my blood pressure?"}' | jq '.reply'
 ```
 
-`artifacts.functional` is the one that matters — it means the models actually loaded and scored, not just that files exist.
-
-Then the full journey (register → login → demo data → predict) is in [DEPLOYMENT.md §4](DEPLOYMENT.md).
-
-⏱ The **first** `/api/predict` after idle takes up to 75 seconds — it's waking the inference service. That's the cold-start retry working, not a hang.
+`/api/predict` should return `provenance: "model"` with four risks. That closes
+the last **Definition of done** item.
 
 ---
 
@@ -160,7 +151,7 @@ Honest list. None of these block a deploy; all belong in the README's limitation
 
 | Gap | Why it's open |
 |---|---|
-| **Chat and recommendation success paths untested** | No Gemini key available. Their 503 degradation paths *are* tested |
+| **Chat and recommendation success paths still unverified** | The key is set, but the model name was retired — fix in Priority 0, then they are testable for the first time |
 | **Model is US-calibrated** | Needs NFHS-5 / LASI (above). The most significant scientific limitation |
 | **Self-report vs sensor mismatch unquantified** | NHANES measures sleep/activity by questionnaire; the app uses sensors. NHANES `PAXDAY` accelerometry could quantify it — it's paired within-person |
 | **GGT is unpredictable** (R² −0.001) | Genuinely not learnable from lifestyle features. Reported as a negative result |
@@ -174,9 +165,9 @@ Honest list. None of these block a deploy; all belong in the README's limitation
 
 | | |
 |---|---|
-| Tests | **163** — 84 Python, 79 Node |
+| Tests | **167** — 84 Python, 83 Node |
 | npm vulnerabilities | 0 |
 | Inference image | 627 MB, runs at 145 MiB of a 512 MiB cap |
 | `/predict` latency | 54–66 ms in-container |
 | Fabricated health values in any `src/` tree | **0** |
-| Deployed | Not yet — Priority 0 and 1 above |
+| Deployed | ✅ Both backend services live on Render; two env vars to correct (Priority 0) |

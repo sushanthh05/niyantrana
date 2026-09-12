@@ -33,6 +33,7 @@ const { default: mongoose } = await import('mongoose');
 const { createApp } = await import('../src/app.js');
 const { default: config, assertValidConfig } = await import('../src/config/env.js');
 const { InferenceClient } = await import('../src/clients/inferenceClient.js');
+const { GeminiClient } = await import('../src/clients/geminiClient.js');
 const { default: User } = await import('../src/models/User.js');
 
 const RUN = `prod${Date.now()}`;
@@ -231,5 +232,58 @@ describe('inference cold start', () => {
         return true;
       });
     assert.equal(calls.length, 2, 'one attempt plus one retry, then stop');
+  });
+});
+
+// --- Gemini model deprecation, found in production --------------------------
+describe('Gemini model fallback', () => {
+  function chainClient(behaviour) {
+    const tried = [];
+    const http = async (url) => {
+      const model = url.split('/models/')[1].split(':')[0];
+      tried.push(model);
+      return behaviour(model);
+    };
+    return { client: new GeminiClient({ apiKey: 'fake', http }), tried };
+  }
+
+  const ok = () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: 'Try dal.' }] } }] }) });
+  const gone = () => ({ ok: false, status: 404, text: async () => 'no longer available to new users' });
+
+  it('skips a model that 404s and uses the next candidate', async () => {
+    // Production returned 404 "no longer available to new users" on
+    // gemini-2.5-flash, months before its published shutdown date. A single
+    // hardcoded model name takes the whole feature down when that happens.
+    const { client, tried } = chainClient((model) => (model === 'gemini-3.5-flash' ? gone() : ok()));
+    assert.equal(await client.generate([{ role: 'user', text: 'hi' }], 'sys'), 'Try dal.');
+    assert.equal(tried.length, 2, 'it must fall through to the next candidate');
+  });
+
+  it('caches the working model instead of re-probing every call', async () => {
+    const { client, tried } = chainClient((model) => (model === 'gemini-3.5-flash' ? gone() : ok()));
+    await client.generate([{ role: 'user', text: 'hi' }], 'sys');
+    const afterFirst = tried.length;
+    await client.generate([{ role: 'user', text: 'again' }], 'sys');
+    assert.equal(tried.length, afterFirst + 1, 'the second call must try exactly one model');
+    assert.equal(tried.at(-1), client.model);
+  });
+
+  it('does NOT burn the chain on a bad key or a quota error', async () => {
+    // 401 and 429 are not model-specific. Walking every candidate would turn
+    // one failure into three and could trip the rate limit harder.
+    for (const status of [401, 429, 500]) {
+      const { client, tried } = chainClient(() => ({ ok: false, status, text: async () => 'nope' }));
+      await assert.rejects(() => client.generate([{ role: 'user', text: 'hi' }], 'sys'));
+      assert.equal(tried.length, 1, `status ${status} must not advance the chain`);
+    }
+  });
+
+  it('reports the failure rather than returning a canned reply', async () => {
+    // The v1 browser client fell back to seven hardcoded strings, so a user
+    // could not tell a real answer from a stub.
+    const { client } = chainClient(() => gone());
+    await assert.rejects(
+      () => client.generate([{ role: 'user', text: 'hi' }], 'sys'),
+      (error) => error.provenance === 'unavailable' && /404/.test(error.details.reason));
   });
 });

@@ -127,11 +127,23 @@ export class InferenceClient {
   }
 
   async health() {
+    // The URL is always reported. Diagnosing the production ENOTFOUND took an
+    // extra round trip purely because this returned {reachable:false, reason}
+    // without saying which address it had tried.
     try {
       const { data } = await this.http.get(`${this.baseUrl}/health`, { timeout: 5000 });
-      return { reachable: true, ...data };
+      return { reachable: true, url: this.baseUrl, ...data };
     } catch (error) {
-      return { reachable: false, reason: error.code || error.message };
+      return {
+        reachable: false,
+        url: this.baseUrl,
+        reason: error.code || error.message,
+        hint: error.code === 'ENOTFOUND'
+          ? 'The hostname does not resolve. On Render, `fromService property: host` '
+            + 'yields a PRIVATE network name, which free web services cannot reach. '
+            + 'Set ML_SERVICE_URL to the public https:// URL.'
+          : undefined,
+      };
     }
   }
 }

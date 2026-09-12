@@ -14,8 +14,22 @@ import config from '../config/env.js';
 import { ServiceUnavailableError, ValidationError } from '../domain/errors.js';
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const DEFAULT_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 20000;
+
+/**
+ * Candidate models, newest first.
+ *
+ * Not speculative generality -- Google shipped three Flash generations inside a
+ * year and pulled `gemini-2.5-flash` from new users BEFORE its published
+ * October 2026 date. Production returned `404: this model is no longer
+ * available to new users` on a name that was current when it was written.
+ *
+ * The first candidate that answers is cached for the process. `GEMINI_MODEL`
+ * pins a single model and disables the chain.
+ */
+const MODEL_CANDIDATES = process.env.GEMINI_MODEL
+  ? [process.env.GEMINI_MODEL]
+  : ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
 
 export class GeminiUnavailableError extends ServiceUnavailableError {
   constructor(reason) {
@@ -25,12 +39,18 @@ export class GeminiUnavailableError extends ServiceUnavailableError {
 }
 
 export class GeminiClient {
-  constructor({ apiKey = config.geminiApiKey, model = DEFAULT_MODEL,
+  constructor({ apiKey = config.geminiApiKey, models = MODEL_CANDIDATES,
     timeoutMs = DEFAULT_TIMEOUT_MS, http = fetch } = {}) {
     this.apiKey = apiKey;
-    this.model = model;
+    this.models = Array.isArray(models) ? models : [models];
     this.timeoutMs = timeoutMs;
     this.http = http;
+    this.resolvedModel = null;
+  }
+
+  /** The model in use, or the next one to be tried. */
+  get model() {
+    return this.resolvedModel ?? this.models[0];
   }
 
   get isConfigured() {
@@ -60,28 +80,49 @@ export class GeminiClient {
     };
     if (systemPrompt) body.systemInstruction = { parts: [{ text: systemPrompt }] };
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response;
-    try {
-      response = await this.http(`${ENDPOINT}/${this.model}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      throw new GeminiUnavailableError(error.name === 'AbortError' ? 'timeout' : error.message);
-    } finally {
-      clearTimeout(timer);
-    }
+    // Try the cached model first, then the rest of the chain.
+    const order = this.resolvedModel
+      ? [this.resolvedModel]
+      : this.models;
+    let lastProblem = 'no candidate models configured';
 
-    if (!response.ok) {
+    for (const model of order) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      let response;
+      try {
+        response = await this.http(`${ENDPOINT}/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        // A network failure is not the model's fault; do not burn the chain.
+        throw new GeminiUnavailableError(
+          error.name === 'AbortError' ? 'timeout' : error.message);
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (response.ok) {
+        if (this.resolvedModel !== model) {
+          this.resolvedModel = model;
+          console.log(`[gemini] using ${model}`);
+        }
+        return GeminiClient.extractText(await response.json());
+      }
+
       const detail = await response.text().catch(() => '');
-      throw new GeminiUnavailableError(`HTTP ${response.status}: ${detail.slice(0, 200)}`);
+      lastProblem = `HTTP ${response.status}: ${detail.slice(0, 200)}`;
+
+      // 404 / 400 on the model path means "that name is gone" -- try the next.
+      // Anything else (401 bad key, 429 quota, 5xx) is not model-specific.
+      if (![400, 404].includes(response.status)) break;
+      console.warn(`[gemini] ${model} rejected (${response.status}); trying the next candidate`);
     }
 
-    return GeminiClient.extractText(await response.json());
+    throw new GeminiUnavailableError(lastProblem);
   }
 
   /** Pull the reply out, distinguishing "empty" from "blocked by safety". */

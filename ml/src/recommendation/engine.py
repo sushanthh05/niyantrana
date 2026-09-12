@@ -203,7 +203,11 @@ class GeminiClient:
     one-class change (Adapter).
     """
 
-    DEFAULT_MODEL = "gemini-2.5-flash"
+    # Candidate models, newest first. Google pulled gemini-2.5-flash from new
+    # users BEFORE its published October 2026 date, so production 404'd on a
+    # name that was current when it was written. The first that answers is
+    # cached; GEMINI_MODEL pins one and disables the chain.
+    MODEL_CANDIDATES = ("gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash")
     ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/"
                 "models/{model}:generateContent")
     DEFAULT_TIMEOUT = 20.0
@@ -212,8 +216,15 @@ class GeminiClient:
                  timeout: float | None = None):
         self._api_key = (api_key or os.environ.get("GEMINI_API_KEY")
                          or os.environ.get("GOOGLE_API_KEY"))
-        self._model_name = model_name or os.environ.get("GEMINI_MODEL", self.DEFAULT_MODEL)
+        pinned = model_name or os.environ.get("GEMINI_MODEL")
+        self._candidates = (pinned,) if pinned else self.MODEL_CANDIDATES
+        self._resolved_model = None
         self._timeout = timeout or float(os.environ.get("GEMINI_TIMEOUT", self.DEFAULT_TIMEOUT))
+
+    @property
+    def model_name(self) -> str:
+        """The model in use, or the next one to be tried."""
+        return self._resolved_model or self._candidates[0]
 
     @property
     def is_configured(self) -> bool:
@@ -249,28 +260,40 @@ class GeminiClient:
                 "Prediction endpoints are unaffected."
             )
 
-        url = self.ENDPOINT.format(model=self._model_name)
-        request = urllib.request.Request(
-            url,
-            data=self._request_body(prompt),
-            headers={"Content-Type": "application/json",
-                     "x-goog-api-key": self._api_key},
-            method="POST",
-        )
+        order = (self._resolved_model,) if self._resolved_model else self._candidates
+        last_problem = "no candidate models configured"
 
-        try:
-            with urllib.request.urlopen(request, timeout=self._timeout) as response:
-                payload = json.load(response)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")[:300]
-            # 429 and 5xx are transient; 4xx usually means a bad key or model.
-            raise RecommenderUnavailableError(
-                f"Gemini request failed with HTTP {exc.code}: {detail}") from exc
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise RecommenderUnavailableError(
-                f"Gemini request failed: {exc}") from exc
+        for model in order:
+            request = urllib.request.Request(
+                self.ENDPOINT.format(model=model),
+                data=self._request_body(prompt),
+                headers={"Content-Type": "application/json",
+                         "x-goog-api-key": self._api_key},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self._timeout) as response:
+                    payload = json.load(response)
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", "replace")[:300]
+                last_problem = f"HTTP {exc.code}: {detail}"
+                # 400/404 on the model path means that name is gone; try the
+                # next. Anything else (401 bad key, 429 quota, 5xx) is not
+                # model-specific, so stop.
+                if exc.code not in (400, 404):
+                    break
+                print(f"Gemini model {model} rejected ({exc.code}); trying the next candidate")
+                continue
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+                # A network failure is not the model's fault.
+                raise RecommenderUnavailableError(f"Gemini request failed: {exc}") from exc
 
-        return self._extract_text(payload)
+            if self._resolved_model != model:
+                self._resolved_model = model
+                print(f"Gemini using {model}")
+            return self._extract_text(payload)
+
+        raise RecommenderUnavailableError(f"Gemini request failed: {last_problem}")
 
 
 class RecommendationEngine:

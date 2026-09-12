@@ -69,13 +69,15 @@ services:
       # A wildcard is rejected at boot: it cannot be combined with credentials.
       - key: CORS_ORIGIN
         sync: false
-      # Wired automatically. `property: host` yields a bare hostname with no
-      # scheme, which InferenceClient.normalizeBaseUrl handles.
+      # The public URL, NOT `fromService property: host`.
+      #
+      # `property: host` returns the hostname on Render's PRIVATE network, and
+      # private networking between web services is not available on the free
+      # plan -- so the name never resolved and every call failed with ENOTFOUND
+      # while the service was perfectly reachable from the public internet.
+      # The blueprint fixes the service name, so this URL is deterministic.
       - key: ML_SERVICE_URL
-        fromService:
-          type: web
-          name: niyantrana-inference
-          property: host
+        value: https://niyantrana-inference.onrender.com
       # A sleeping instance takes ~1 minute to wake, so the first attempt after
       # idle is retried once with this longer window.
       - key: ML_COLD_START_TIMEOUT_MS
